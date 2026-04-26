@@ -1,0 +1,13 @@
+cd ~/Downloads
+curl -LO https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh
+bash Miniconda3-latest-MacOSX-arm64.sh
+source ~/.zshrc
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
+conda install -n base -c conda-forge mamba -y
+mamba install -y -c conda-forge -c bioconda \
+ fastqc multiqc fastp salmon subread samtools \
+ r-base r-essentials r-tidyverse r-data.table \
+ bioconductor-deseq2 bioconductor-tximport \
+ bioconductor-apeglm bioconductor-pheatmap

@@ -1,0 +1,228 @@
+---
+title: "Assignment 2 ggplot2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 2: Visualizations with ggplot2
+
+Let's put those ggplot2 skills to work! This assignment is meant to test three things:
+
+1. Can you pick the best type of plot for your data?
+2. Can you pick the best visual and aesthetic features for your data and your question?
+3. Can you interpret what figures and tables are trying to convey?
+
+This assignment will consist of both coding questions and multiple choice questions as well. Topics in the assignment may be directly from lectures/practicals or might encourage you to look for new functions to accomplish the goal. Please ensure to read the questions carefully and to copy variable names and file paths to ensure no typos so the autograder can run smoothly. Make sure you also load all the packages required for the functions you are using and remember to show your work if needed!
+
+Autograder code testing cells consist of some tests you can see as a student and tests that are hidden. The tests you can see as a student will produce an error when your answers are formatted incorrectly \(but do not tell you if they are right\). You may periodically see blank cells \- please do not move them or try to delete them as these are for the hidden tests.  
+
+Please note that the autograder "points" may not scaled, and we will follow the grading guidelines and rubric for Jupyter Coding Assignments found on Blackboard.
+
+Good luck!
+
+```{r}
+library(car)
+library(ggplot2)
+library(viridis)
+library(RColorBrewer)
+library(tidyverse)
+
+# Add any additional packages/ libraries you may need here:
+```
+
+## Section 1: Selecting plots and practicing ggplot2 basics
+
+### Question 1 (3 pts total)
+
+You are using the dataset `Migration` from the `car` package to investigate trends in migration between the provinces of Canada. It includes data about where the migrants came from \(`source`\), where the migrants are going \(`destination`\), the number of migrants between 1966 and 1971 \(`migrants`\), the `distance` between the source and destination, and the source population `pops` and destination populatin `popd` in 1966 and 1971. 
+
+```{r}
+head(Migration)
+```
+
+#### Question 1a (1 pts)
+
+You want to visually determine which province has the total highest number of migrants incoming in the five year period. What kind of plot will you make to make this preliminary assessment? Save your answer as a string in `question_1a`, for example:
+`question_1a <- "geom_answer()"`
+
+#### Question 1b (1 pts)
+
+Create the plot from 1a. Don't make any modifications -- just include the mandatory ingredients needed for a plot.
+
+#### Question 1c (1 pts)
+
+In order to add colour, your colleague made a modification to your code in 1b to include `fill = destination` in your aesthetics argument and wants to use a custom set of colours they selected. What kind of layer will you need to add to modify your plot to use your colleague's custom set of colours? Do not include any parameters or arguments, just the layer function. Save your answer as a string in `question_1c`, for example:
+`question_1c <- "layer()"`
+
+```{r}
+# Answer 1a here
+head(Migration)
+
+question_1a <- "geom_col()"
+
+```
+
+```{r}
+# Plot 1b here
+Migration %>%
+  group_by(source) %>%
+  ggplot (aes(y=migrants, x=source)) + 
+  geom_col(width = .9)
+
+```
+
+```{r}
+# Answer 1c here
+question_1c <- "scale_fill_manual()"
+
+```
+
+```{r}
+testthat::expect_true(endsWith(question_1a, "()"))
+testthat::expect_true(endsWith(question_1c, "()"))
+```
+
+## Section 2: Selecting visual and aesthetic features
+
+Try to write the code with the least amount of lines.
+
+### Question 2  \(4 pts total\)
+
+Continue using the `Migration` dataset. Your colleague created a basic scatterplot. Let's make some modifications to get it publication-ready.
+
+```{r}
+ggplot(data = Migration, aes(x = distance, y = migrants, colour = destination)) + geom_point()
+```
+
+#### Question 2a \(0.5 pts\)
+
+What layer would you add to rename the x\-axis and y\-axis titles in a single call? Save your answer as a string in `question_2a`. Do not include any parameters or arguments, just the layer function, for example:
+`question_2a <- "layer()".`
+
+#### Question 2b \(0.5 pts\)
+
+What layer would you add to change the colour of the points to a ggplot2 preset colourblind\-friendly palette? Save your answer as a string in `question_2b`. Do not include any parameters or arguments, just the layer function, for example:
+`question_2b <- "layer()".`
+
+#### Question 2c \(0.5 pts\)
+
+What layer would you add to change to the ggplot2 theme with a white background and only the x\-axis and y\-axis line? Save your answer as a string in `question_2c`. Do not include any parameters or arguments, just the layer function, for example:
+`question_2c <- "layer()".`
+
+#### Question 2d \(1.5 pts\)
+
+Now that you've identified what should be modified, let's make those modifications and create a plot! Change the x\-axis and y\-axis title, change the colour of the points to be colourblind\-friendly, and change the default theme. This time, do include arguments for each of the additional layers, and make all adjustments that you deem are necessary.
+
+#### Question 2e \(1 pts\)
+
+Write a descriptive figure caption for the final plot you created in 2d.
+
+```{r}
+question_2a <- "labs()"
+question_2b <- "scale_color_brewer()"
+question_2c <- "theme_classic()"
+```
+
+```{r}
+# Plot 2d here
+ggplot(data = Migration, aes(x = distance, y = migrants, colour = destination)) +
+  geom_point()+
+  labs(
+    title = "Total Number of Migrants versus distance traveled per province",
+    x = "# of migrants",
+    y = "distance",
+    colour="Destination Province"
+  )+
+  scale_color_brewer(palette="Spectral")+
+  theme_classic()
+```
+
+```{r}
+#' Figure shows the number of people that have travelled (migrated) a specific 
+#' distance between 1966 and 1971. Each colour represents the destined 
+#' province(destination)
+```
+
+```{r}
+testthat::expect_true(endsWith(question_2a, "()"))
+testthat::expect_true(endsWith(question_2b, "()"))
+testthat::expect_true(endsWith(question_2c, "()"))
+```
+
+## Question 3 \(5 pts total\)
+
+You have come up with the following research question: does a higher source population in 1966 mean that more migrants move from that province? You predict that a higher source population means that there will be more individuals that move around, simply because there are more people in that province who may decide to move.
+
+You have created a plot to visualize initially, and then you run a generalized linear model with Poisson distribution, both below. Let's interpret both outputs and make some final conclusions.
+
+### Question 3a \(1 pt\)
+
+To visualize the model, add a layer to draw the Poisson regression onto the plot.
+
+### Question 3b \(0.5 pts\)
+
+Start to interpret the output of the generalized linear model provided. Firstly, is there an increase or decrease of migrants with a higher source population? Save your answer as a character string in `question_3b`. Your answer should be one of the following:
+
+- `question_3b_choices <- c("increase", "decrease", "significant increase", "significant decrease")`
+
+### Question 3c \(1 pts\)
+
+What function would you use to back\-transform the coefficients of the glm output? Back\-transform the slope coefficient and save it in `question_3c`.
+
+### Question 3d \(2 pts\)
+
+Let's say you want to now investigate how the number of migrants differ based on the source population and the destination (province). Modify the original plot to colour by the destination, and also include a Poisson regression curve for each coloured destination. Make the plot publication-ready by modifying the axes titles, the background, and any other elements that can be improved. Remember that you will also have to run the statistical test later on to verify your visual results (but we won't do that here)!
+
+### Question 3e \(0.5 pts\)
+
+Based on visual inspection of the plot, which province had the strongest effect of population on the number of migrants to it? Use the same province code as used in the dataset, and save your answer as a string in `question_3e`.
+
+```{r}
+ggplot(data = Migration, aes(x = pops66, y = migrants)) + geom_point()
+
+migrant_glm <- glm(migrants ~ pops66, data = Migration, family = poisson)
+summary(migrant_glm)
+```
+
+```{r}
+# Plot 3a here
+ggplot(data = Migration, aes(x = pops66, y = migrants)) +
+  geom_point()+
+  geom_smooth(method = "glm",  
+              method.args = list(family = "poisson"))
+```
+
+```{r}
+# Answer 3b, 3c, 3e here
+question_3b <- "significant increase"
+question_3c <- unname(exp(coef(migrant_glm)["pops66"]))
+question_3e <- "ONT"
+                         
+```
+
+```{r}
+# Plot 3d here
+ggplot(data = Migration, aes(x = pops66, y = migrants, colour = destination)) +
+  geom_point()+
+  geom_smooth(method = "glm",  
+              method.args = list(family = "poisson"))+
+  labs(
+    title = "Migration based on initial Province Population Size",
+    x = "Source population size 1966",
+    y = "# of Migrants",
+    colour = "Destination Province"
+  )+
+  scale_color_brewer(palette="Spectral")+
+  theme_classic()
+  
+  
+```
+
+```{r}
+testthat::expect_true(question_3b %in% c("increase", "decrease", "significant increase", "significant decrease"))
+testthat::expect_is(question_3c, "numeric")
+testthat::expect_true(question_3e %in% levels(Migration$destination))
+```

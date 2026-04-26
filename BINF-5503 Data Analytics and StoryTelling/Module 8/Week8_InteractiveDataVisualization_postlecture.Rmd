@@ -1,0 +1,380 @@
+---
+title: "Week 8 - Interactive Data Visualizations with Shiny"
+author: "Sabrina Ge, Vicki M. Zhang"
+date: "March 3rd, 2025"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+## Introduction
+
+When working with complex data, static images may not be able to convey the dimensions of your data. Also, when collaborating with others on your team, you can find yourself constantly exporting the same figure with different axis or colours. To communicate your data more efficiently, interactive visualization tools are great to share a dynamic snapshot of your data that others can continue to investigate.
+
+These documents are set up in a very different way so we will first organize our code and get set up.
+
+## Set up 
+
+Load our libraries! 
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(cowplot)
+```
+
+You have already used many of the tools in this lesson so we are going to spend more time in group exercises and coding the workflow from the ground up. 
+
+### Exercise
+
+We are going to work with a dataset with tabulated data from digitized images of breast masses, some of which represented cancers. 
+
+The original dataset can be accessed here: https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+%28Diagnostic%29
+
+Below is some copied  summary information: 
+
+> The phenotype attributions are as follows:
+> 
+> 1) ID number
+> 2) Diagnosis (M = malignant, B = benign)
+> 3-32)
+> 
+> Ten real-valued features are computed for each cell nucleus:
+> 
+> a) radius (mean of distances from center to points on the perimeter)
+> b) texture (standard deviation of gray-scale values)
+> c) perimeter
+> d) area
+> e) smoothness (local variation in radius lengths)
+> f) compactness (perimeter^2 / area - 1.0)
+> g) concavity (severity of concave portions of the contour)
+> h) concave points (number of concave portions of the contour)
+> i) symmetry
+> j) fractal dimension ("coastline approximation" - 1)
+> 
+> The mean, standard error and "worst" or largest (mean of the three largest values) of these features were computed for each image, resulting in 30 features.
+>
+> All feature values are recoded with four significant digits.
+>
+> Missing attribute values: none
+
+Save the data from `breast_cancer_wisconsin_diagnostic.csv` to an object named bCancer. Take a preliminary look at the data to understand its structure. 
+
+```{r}
+# Download and read in the data
+bCancer <- read_csv("breast_cancer_wisconsin_diagnostic.csv")
+
+head(bCancer)
+```
+
+Let's do some analyses and create some plots to see relationships between the data.
+
+
+## Categorical vs Numeric
+
+Diagnosis is currently the only categorical variable so let's make another one. Let us choose for now to make a categorical variable based on the quantiles of `smoothness_mean`. 
+
+```{r}
+ggplot(bCancer, aes(x = smoothness_mean)) + 
+  geom_histogram()
+
+smoothness_q <- quantile(bCancer$smoothness_mean)
+smoothness_q
+
+# Create improved plot with quantiles
+
+```
+
+```{r}
+# mutate new column "smoothness_mean_cat" based on "smoothness_mean"
+bCancer <- bCancer %>% 
+  mutate(smoothness_mean_cat = cut(smoothness_mean,
+                                   breaks = c(-Inf, smoothness_q["25%"], smoothness_q["50%"], smoothness_q["75%"], Inf),
+                                   labels = c("veryLow", "low", "high", "veryHigh")))
+
+table(bCancer$smoothness_mean_cat)
+```
+
+### Boxplot  
+
+Make a boxplot with the new `smoothness_mean_cat` variable contrasted with the `radius_mean`. What are the trends in the data? 
+
+```{r}
+# Make the boxplot
+ggplot(bCancer, aes(x = smoothness_mean_cat, y = radius_mean, fill = smoothness_mean_cat)) + 
+  geom_boxplot(outlier.shape = NA) +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width = 0.2, height=0) +
+  theme_classic()
+
+ggplot(bCancer, aes(x = smoothness_mean_cat, y = compactness_mean, fill = smoothness_mean_cat)) + 
+  geom_boxplot(outlier.shape = NA) +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width = 0.2, height=0) +
+  theme_classic()
+```
+
+
+### Generalizing 
+
+Rework the code in the previous exercise to make it more generalized and easier to change the y-axis plot in the first line.
+
+For consistency, start with: 
+
+> y_variable <- "radius_mean"
+
+Hint: Remember that reading in a column name stored in an object is different than what we have conventionally been doing because ggplot() is generally taking the word after "y =" to be the name of a column, not a new object. 
+
+Hint: Aesthetics can be specified in either the main ggplot() function or the geometry call. This will allow you to define the aesthetics differently. For this case, one option is to use `aes_string()` so that we can use strings to define the aesthetic mappings - this is useful for functions.
+
+```{r}
+y_variable <- "compactness_mean"
+  
+# Use "y_variable" in a boxplot
+ggplot(bCancer, aes_string(x = "smoothness_mean_cat", y = y_variable, fill = "smoothness_mean_cat")) + 
+  geom_boxplot(outlier.shape = NA) +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width = 0.2, height=0) +
+  theme_classic()
+
+ggplot(bCancer, aes(x = smoothness_mean_cat, y = .data[[y_variable]], fill = smoothness_mean_cat)) + 
+  geom_boxplot(outlier.shape = NA) +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width = 0.2, height=0) +
+  theme_classic()
+
+
+```
+
+### Plotting Function  
+
+Let's practice making this into a custom function as well! Name the custom function `smoothness_boxplot`.
+
+```{r}
+smoothness_boxplot <- function(y_variable2) { 
+
+  # What do we put here?
+  ggplot(bCancer, aes_string(x = "smoothness_mean_cat", y = y_variable2, fill = "smoothness_mean_cat")) + 
+  geom_boxplot(outlier.shape = NA) +
+  stat_boxplot(geom = "errorbar") +
+  geom_jitter(width = 0.2, height=0) +
+  theme_classic()
+  
+}
+
+smoothness_boxplot("radius_mean")
+for (cname in colnames(bCancer)[2:6]) {
+  print(smoothness_boxplot(cname))
+}
+```
+
+
+## Numeric vs Numeric
+
+### Scatterplot
+
+This dataset has a lot of continuous variables to explore. Let's make some plots to help us decide which variables we should compare with a linear model. Plot `texture_mean` versus `radius_mean`.
+
+```{r}
+# Plot the scatterplot
+ggplot(bCancer, aes(x = radius_mean, y = texture_mean)) + 
+  geom_point() + 
+  theme_classic()
+
+```
+
+### Linear Model
+
+Fit a linear model to the data describing `texture_mean` as a function of `radius_mean`. 
+
+```{r}
+# Fit the linear model
+fit_bc <- lm(texture_mean ~ radius_mean, bCancer)
+
+print(fit_bc)
+summary(fit_bc)
+```
+
+
+## Writing intuitive text outputs 
+
+Incorporating human readable outputs to your functions can assist interpretation.
+
+```{r}
+# Get linear model coefficients
+print(fit_bc$coefficients[1])
+print(fit_bc$coefficients[2])
+print(fit_bc$coefficients)
+
+```
+
+```{r}
+textOfFormula <- paste0("texture_mean = ", 
+                        round(fit_bc$coefficients[1], 2), 
+                        " + ", 
+                        round(fit_bc$coefficients[2], 2), 
+                        "*", 
+                        names(fit_bc$coefficients[2])
+)
+
+message("The formula to model ", 
+        names(fit_bc$coefficients[2]), 
+        " is: ", 
+        textOfFormula)
+
+# Generate a message that says "The intercept is: ___"
+message(paste0("The intercept is: ", round(fit_bc$coefficients[1], 2))) 
+
+# Generate a message that says "The slope of ___ is ___"
+message(paste0("The slope of ",
+                 names(fit_bc$coefficients[2]), 
+                 " is ", 
+                 round(fit_bc$coefficients[2], 2)))
+
+```
+
+### Linear model text
+
+Visualize the linear model. When drawing your line, use the $ operator to access the coefficients from the object so that it can robustly be applied to different datasets.
+
+```{r}
+ggplot(bCancer, aes(x = radius_mean, y = texture_mean)) + 
+  geom_point(alpha = 0.4) + 
+  
+  # the line
+  geom_abline(intercept = fit_bc$coefficients[1],
+              slope = fit_bc$coefficients[2],
+              colour = "green4", 
+              linewidth = 1) + 
+  
+  # the equation of the line
+  ggtitle(textOfFormula) +
+  theme_classic() + 
+  theme(plot.title = element_text(colour = "green4"))
+```
+
+
+## Selecting from a list of options 
+
+Setting up for our interactive object, we can provide a list of options to select from. We will also re-write the code to make sure it is generic and prepared to accept different inputs. 
+
+```{r}
+# Set up variable objects 
+depVariable <- "radius_mean"
+indepVariableOptions <- colnames(bCancer)[c(3:13)]
+indepVariable <- indepVariableOptions[7]
+
+# Set up formula for running LM 
+formulaLM <- as.formula(paste(depVariable, indepVariable, sep = " ~ "))
+
+# Execute
+fit1 <- lm(formulaLM, data = bCancer)
+summary(fit1)
+```
+
+## Putting it all together
+
+Create a function called `lmFunction` that will accept two inputs, the independent and dependent variable, and will run the linear model, show a summary of the model, and visualize the point plot with the line overlayed. 
+
+Here is some code to get you started: 
+
+```{r}
+lmFunction  <- function(selectedIndepVariable, selectedDepVariable) {
+  
+}
+```
+
+Take it one step at a time, we have written most of the code already - reshape it into a working function. Troubleshoot as you work along to make sure it's running smoothly. 
+
+```{r}
+lmFunction  <- function(selectedIndepVariable, selectedDepVariable) {
+
+  round_digits <- 4  
+  
+  # Run linear model with variables
+  formulaLM <- as.formula(paste(selectedDepVariable, selectedIndepVariable, sep = " ~ "))
+  fit_bc <- lm(formulaLM, data = bCancer)
+  
+  # Text outputs 
+  textOfFormula <- paste0(selectedDepVariable, 
+                          " = ", 
+                          round(fit_bc$coefficients[1], round_digits), 
+                          " + ", 
+                          round(fit_bc$coefficients[2], round_digits), 
+                          "*", 
+                          names(fit_bc$coefficients[2])
+  )
+  message("The formula to model ", 
+          names(fit_bc$coefficients[2]), 
+          " is: ", 
+          textOfFormula)
+  message(paste0("The intercept is: ", round(fit_bc$coefficients[1], round_digits))) 
+  #message(sprintf("The intercept is: %f",  fit_bc$coefficients[1]))
+  message(paste0("The slope of ",
+                 names(fit_bc$coefficients[2]), 
+                 " is ", 
+                 round(fit_bc$coefficients[2], round_digits)))
+  
+  # ggplot output
+  ggplot(bCancer, aes(x = .data[[selectedIndepVariable]], y = .data[[selectedDepVariable]])) +
+    geom_point(alpha = 0.4) +
+    geom_abline(intercept = fit_bc$coefficients[1],
+                slope = fit_bc$coefficients[2],
+                colour = "green4",
+                linewidth = 1) +
+    ggtitle(textOfFormula) +
+    theme_classic() +
+    theme(plot.title = element_text(colour = "green4"))
+  
+}
+
+lmFunction("radius_mean", "texture_mean")
+lmFunction("radius_mean", "symmetry_mean")
+lmFunction("concavity_mean", "symmetry_mean")
+```
+
+
+## Practice problem 
+
+Create a function called `histFunction` that takes a single variable and plots a histogram of it. 
+
+Hint: this is a much simpler version of lmFunction - you just need the ggplot part
+
+Here is some code to get you started: 
+
+```{r}
+histFunction  <- function(singleVariable) {
+  ggplot(bCancer, aes(x = .data[[singleVariable]])) + 
+    geom_histogram(bins = 50) +
+    theme_classic()
+}
+
+histFunction("radius_mean")
+histFunction("concavity_mean")
+```
+
+Bonus exercise: We can also make this a bit more comprehensive and include text to report on normality by adding in a normality check with the Shapiro-Wilk test:
+```{r}
+histFunctionNorm  <- function(singleVariable) {
+  fit <- shapiro.test(bCancer[[singleVariable]])
+  
+  message(paste0("The p-value of the Shapiro-Wilk test for ", singleVariable, ": ", fit$p.value))
+  if (fit$p.value < 0.05) {
+    message(paste0("We reject the null hypothesis that ", singleVariable,  " is normal"))
+  } else {
+    message(paste0("We accept the null hypothesis that ", singleVariable,  " is normal"))
+  }
+  
+  ggplot(bCancer, aes(x = .data[[singleVariable]])) + 
+    geom_histogram(bins = 50) +
+    theme_classic()
+}
+
+histFunctionNorm("radius_mean")
+histFunctionNorm("concavity_mean")
+
+```
+

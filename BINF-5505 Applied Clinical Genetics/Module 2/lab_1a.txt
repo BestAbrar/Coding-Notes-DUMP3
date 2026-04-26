@@ -1,0 +1,18 @@
+1a.
+gene_location = "chr19:11,089,463-11,133,820"
+strand_direction = "+"
+total_exon = 18
+
+1b.
+H3K acetylation and methylation peaks span exon 1 and into intron 1 with some peaks at exon 18. DNase Signal show highest sensitivity at and around exon 1. This makes sense because this is where UTR regions for expression would be located.
+
+1c.
+The tissues that are upregulated are Adrinal Gland, Lungs and Ovaries. The tissue that are down regulated is derived from the CNS (specifically brain)
+
+1d.
+High conservation region -> LDL cholesterol level QTL2
+Low conservation region -> HYPERCHOLESTEROLEMIA, FAMILIAL, 1
+Inverse relationship between conservation score and rate of evolution
+1e.
+
+

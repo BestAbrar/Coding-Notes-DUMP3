@@ -1,0 +1,441 @@
+---
+title: "RNA-seq Worksheet: Differential Expression Analysis with the airway Dataset"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Overview
+
+In this worksheet, you will analyze a small RNA-seq dataset using **DESeq2**. The dataset comes from the Bioconductor package **airway** and contains RNA-seq counts from **human airway smooth muscle cell lines** under two conditions:
+
+- **untrt** = untreated
+- **trt** = treated with dexamethasone
+
+Your goal is to:
+
+1. load the dataset,
+2. check samples and metadata,
+3. set up and run a DESeq2 analysis,
+4. create standard RNA-seq plots,
+5. identify top differentially expressed genes,
+6. write a brief interpretation of the results.
+
+# Learning objectives
+
+By the end of this activity, you should be able to:
+
+- import RNA-seq counts and metadata from a Bioconductor dataset,
+- verify that samples and metadata match,
+- create a `DESeqDataSet`,
+- run differential expression analysis with DESeq2,
+- interpret PCA, MA, and volcano plots,
+- summarize top genes and biological patterns.
+
+# Before you begin
+
+Install packages if needed.
+
+```{r install-packages, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+BiocManager::install(c("airway", "DESeq2", "SummarizedExperiment"), ask = FALSE, update = FALSE)
+install.packages(c("ggplot2", "pheatmap"))
+```
+
+Load required libraries.
+
+```{r load-libraries}
+library(airway)
+library(DESeq2)
+library(SummarizedExperiment)
+library(ggplot2)
+library(pheatmap)
+```
+
+# Part 1. Load the dataset
+
+Load the `airway` dataset.
+
+```{r load-airway}
+data(airway)
+airway
+```
+
+Extract the count matrix and metadata.
+
+```{r extract-data}
+counts <- assay(airway)
+meta <- as.data.frame(colData(airway))
+
+head(counts[, 1:4])
+meta
+dim(counts)
+```
+
+## Questions
+
+1. How many genes are in the dataset?  
+   63677 genes in this dataset
+
+2. How many samples are in the dataset?  
+   There are 8 samples 
+
+3. What are the two treatment groups?  
+   Treated and un-treated
+
+# Part 2. Sample check and metadata check
+
+Check the dimensions of the count matrix.
+
+```{r dimensions}
+dim(counts)
+```
+
+Check sample names in the count matrix.
+
+```{r sample-names}
+colnames(counts)
+```
+
+Check sample names in the metadata.
+
+```{r metadata-names}
+rownames(meta)
+```
+
+Confirm that the sample names match.
+
+```{r match-check}
+all(colnames(counts) == rownames(meta))
+```
+
+Inspect important metadata columns.
+
+```{r metadata-summary}
+meta[, c("cell", "dex")]
+table(meta$dex)
+table(meta$cell)
+```
+
+## Questions
+
+4. Do the sample names in the count matrix and metadata match?  
+   Yes the row name of the metadata matches the column name of the count matrix 
+
+5. How many samples are treated and how many are untreated?  
+   4 samples treated and 4 samples untreated
+
+6. How many unique cell lines are included?  
+   four unique cell lines 
+
+# Part 3. Quick quality checks
+
+## 3.1 Library sizes
+
+Calculate the total counts per sample.
+
+```{r library-sizes}
+lib_sizes <- colSums(counts)
+lib_sizes
+```
+
+Plot library sizes.
+
+```{r library-barplot}
+barplot(lib_sizes,
+        las = 2,
+        main = "Library sizes",
+        ylab = "Total counts")
+```
+
+## 3.2 Gene count distribution
+
+Check total counts across genes.
+
+```{r gene-sums}
+summary(rowSums(counts))
+```
+
+Plot the distribution of total counts per gene.
+
+```{r gene-sums-hist}
+hist(rowSums(counts),
+     breaks = 100,
+     main = "Total counts per gene",
+     xlab = "Row sums")
+```
+
+## Questions
+
+7. Do the library sizes look similar across samples, or are there large differences?  
+   Library size look similar across samples
+
+8. Why might very low-count genes be filtered before differential expression analysis?  
+   DESeq assumes some level of expression from genes, even if it's low, otherwise it
+   coule be becuase sequencer didn't detect rather than low expression
+
+# Part 4. DESeq2 setup
+
+Create a DESeq2 dataset. Because treatment is measured within cell lines, we will model:
+
+```r
+~ cell + dex
+```
+
+This means we test the treatment effect while adjusting for cell-line differences.
+
+```{r dds-setup}
+dds <- DESeqDataSet(airway, design = ~ cell + dex)
+dds
+```
+
+Set untreated as the reference group.
+
+```{r relevel}
+dds$dex <- relevel(dds$dex, ref = "untrt")
+levels(dds$dex)
+```
+
+Optional filtering step: keep genes with at least 10 counts in at least 2 samples.
+
+```{r filtering}
+keep <- rowSums(counts(dds) >= 10) >= 2
+dds <- dds[keep, ]
+dds
+```
+
+## Questions
+
+9. Why do we include `cell` in the design formula?  
+   because each cell type is repeated twice, trt and untrt, and must be grouped accordingly rather than by sample
+
+10. What does it mean to set `untrt` as the reference level?  
+   untrt read count is the baseline, used to compare the significance of differential gene expression
+
+# Part 5. Run DESeq2
+
+Run the differential expression pipeline.
+
+```{r run-deseq}
+dds <- DESeq(dds)
+```
+
+Extract results for treated vs untreated.
+
+```{r get-results}
+res <- results(dds, contrast = c("dex", "trt", "untrt"))
+summary(res)
+```
+
+Convert results to a data frame and sort by adjusted p-value.
+
+```{r sort-results}
+res_df <- as.data.frame(res)
+res_df <- res_df[order(res_df$padj), ]
+head(res_df)
+```
+
+Count significant genes.
+
+```{r significant-genes}
+sig <- subset(res_df, padj < 0.05)
+nrow(sig)
+```
+
+## Questions
+
+11. How many genes are significant at adjusted p-value < 0.05?  
+   4100
+
+12. Why do we use adjusted p-values instead of raw p-values?  
+   to account for false discovery rate (FDR)
+
+# Part 6. PCA plot
+
+Use a variance-stabilizing transformation for PCA.
+
+```{r vst}
+vsd <- vst(dds, blind = FALSE)
+```
+
+Create a PCA plot.
+
+```{r pca-plot}
+plotPCA(vsd, intgroup = c("dex", "cell"))
+```
+
+Optional custom PCA plot.
+
+```{r custom-pca}
+pcaData <- plotPCA(vsd, intgroup = c("dex", "cell"), returnData = TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+ggplot(pcaData, aes(PC1, PC2, color = dex, shape = cell)) +
+  geom_point(size = 4) +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  ggtitle("PCA of airway samples")
+```
+
+## Questions
+
+13. Do samples appear to separate by treatment, cell line, or both?  
+   samples appear to separate by treatment more significantly than cell line 
+
+14. Are there any possible outliers?  
+   No
+
+# Part 7. MA plot
+
+Create an MA plot.
+
+```{r ma-plot}
+plotMA(res, ylim = c(-5, 5))
+```
+
+## Question
+
+15. What does the MA plot show about gene expression changes between treated and untreated samples?  
+   there are genes that are both up and down regulated significantly
+
+# Part 8. Volcano plot
+
+Create a volcano plot using DESeq2 results.
+
+```{r volcano-data}
+volcano_df <- as.data.frame(res)
+volcano_df$gene <- rownames(volcano_df)
+volcano_df <- volcano_df[!is.na(volcano_df$padj), ]
+
+volcano_df$significance <- "Not significant"
+volcano_df$significance[volcano_df$padj < 0.05 & volcano_df$log2FoldChange > 1] <- "Up"
+volcano_df$significance[volcano_df$padj < 0.05 & volcano_df$log2FoldChange < -1] <- "Down"
+
+print(length(volcano_df$significance[volcano_df$padj < 0.05 & volcano_df$log2FoldChange > 1]))
+print(length(volcano_df$significance[volcano_df$padj < 0.05 & volcano_df$log2FoldChange < -1]))
+```
+
+```{r volcano-plot}
+ggplot(volcano_df, aes(x = log2FoldChange, y = -log10(padj), color = significance)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(
+    title = "Volcano plot: treated vs untreated",
+    x = "log2 fold change",
+    y = "-log10 adjusted p-value"
+  )
+```
+
+Optional: label the top 10 genes.
+
+```{r volcano-labels}
+top_lab <- head(volcano_df[order(volcano_df$padj), ], 10)
+
+ggplot(volcano_df, aes(x = log2FoldChange, y = -log10(padj), color = significance)) +
+  geom_point(alpha = 0.7) +
+  geom_text(data = top_lab, aes(label = gene), vjust = -0.5, size = 3, show.legend = FALSE) +
+  theme_minimal() +
+  labs(
+    title = "Volcano plot with top genes labeled",
+    x = "log2 fold change",
+    y = "-log10 adjusted p-value"
+  )
+```
+
+## Questions
+
+16. Approximately how many strongly upregulated and downregulated genes do you observe?  
+   531 upregulated and 497 downregulated genes
+
+17. What information does the volcano plot show that complements the MA plot?  
+   idfk
+
+# Part 9. Top genes and heatmap
+
+Add gene names as a column and inspect the top significant genes.
+
+```{r top-genes}
+sig$gene <- rownames(sig)
+sig <- sig[, c("gene", colnames(sig)[!colnames(sig) %in% "gene"])]
+head(sig, 10)
+```
+
+Save results if desired.
+
+```{r save-results, eval=FALSE}
+write.csv(as.data.frame(res_df), "airway_deseq2_results.csv", row.names = TRUE)
+write.csv(sig, "airway_significant_genes.csv", row.names = FALSE)
+```
+
+Create a heatmap of the top 20 significant genes.
+
+```{r heatmap}
+top_genes <- rownames(subset(res_df, padj < 0.05))[1:20]
+mat <- assay(vsd)[top_genes, ]
+mat <- mat - rowMeans(mat)
+
+print(top_genes)
+
+pheatmap(mat,
+         annotation_col = meta[, c("dex", "cell"), drop = FALSE],
+         main = "Top 20 DE genes")
+```
+
+## Questions
+
+18. List the top 5 significant genes.  
+   "ENSG00000152583" "ENSG00000165995" "ENSG00000120129" "ENSG00000101347" "ENSG00000189221"
+
+19. Does the heatmap show clear clustering by treatment, cell line, or both?  
+   Heatmap shows clear clustering by treatment not cell line
+
+# Part 10. Short interpretation
+
+Write a short paragraph summarizing your findings.
+
+Use the prompts below:
+
+- What comparison did you perform?
+- Why did you include `cell` in the model?
+- Did the PCA suggest separation by treatment, cell line, or both?
+- Were many genes significantly differentially expressed?
+- What is one biological conclusion you can make from this analysis?
+
+## Your interpretation
+
+**Write 4 to 6 sentences here:**
+
+
+
+# Submission checklist
+
+Make sure your submission includes:
+
+- completed code chunks,
+- answers to the questions,
+- PCA plot,
+- MA plot,
+- volcano plot,
+- heatmap,
+- short interpretation paragraph.
+
+# Optional challenge
+
+Try one of the following:
+
+1. Count how many genes are upregulated and downregulated at `padj < 0.05` and `|log2FC| > 1`.
+2. Make a table of the top 20 genes.
+3. Compare results before and after filtering low-count genes.
+4. Look up one top gene and describe its possible role in glucocorticoid response.

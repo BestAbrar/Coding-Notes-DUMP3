@@ -1,0 +1,208 @@
+---
+title: "Assignment 1 - Statistical Interpretations"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 1: Statistical Interpretations
+
+Now that you have some stats tools under your belts, let's test and see how much you know! This assignment is meant to three things:
+
+1. Can you run some descriptive statistics?
+2. Can you pick the right test to answer the question of interest?  
+3. Can you interpret what the result of your test means? 
+
+This assignment will consist of autograded questions and manually\-graded writing questions. Topics in the assignment may be directly from lectures or might encourage you to look for new functions to accomplish the goal. Please ensure to read the questions carefully and to copy variable names and file paths to ensure no typos so the autograder can run smoothly. Make sure you also load all the packages required for the functions you are using. 
+
+When writing the names of statistical tests, please make sure you spell test names correctly, although there is a lot of leeway especially for dashes, spaces and apostrophes. For example, if the answer is "Mann\-Whitney U\-test", all these are also acceptable answers: "Mann Whitney U test", "Mann Whitney test", "Mann whitney U Test", "Wilcoxon rank sum". These answers would not be acceptable: "Man Whittney U\-test" \(misspelled\), "Wilcoxon signed rank test" \(different test\). 
+
+Autograder code testing cells consist of some tests you can see as a student and tests that are hidden. The tests you can see as a student will produce an error when your answers are formatted incorrectly \(but do not tell you if they are right\). You may periodically see blank cells \- please do not move them or try to delete them as these are for the hidden tests.  
+
+
+For any explicit multiple hypothesis correction, use Bonferroni correction.
+
+Please note that the autograder "points" are not scaled, and we will follow the grading guidelines and rubric for Jupyter Coding Assignments found on Blackboard.
+
+Good luck!
+
+```{r}
+library(car)
+library(rstatix)
+library(corrplot)
+library(tidyverse)
+
+# Add any additional packages/ libraries you may need here:
+```
+
+---
+
+## Section 1: Descriptive Statistics
+
+As mentioned in class, descriptive statistics are a good way to assess your data and find patterns of interest that may be worth investigating further. Here we are going to play with some descriptive statistics.
+
+### Question 1 (3 pts total)
+
+Use the `trees` dataset for the next few questions.
+
+
+#### Question 1a (1 pts)
+
+Which of the variables in the dataset has the largest spread of data? Store the answer in the variable `question_1a` as a string, for example: `question_1a <- "Answer"`.
+
+#### Question 1b (1 pts)
+
+Which of the variables in the dataset has the smallest absolute difference between the median and the mean?
+
+```{r}
+data(trees)
+summary(trees)
+question_1a<-"Volume"
+question_1b<-"Height"
+```
+
+```{r}
+testthat::expect_true(question_1a %in% colnames(trees))
+testthat::expect_true(question_1b %in% colnames(trees))
+```
+
+#### Question 1c \(1 pt\)
+
+Continue using the `trees` dataset.
+
+Determine which of the two variables has the highest significant correlation -- what is the value of their correlation? Round your answer to two decimal places, and then store your answer in `question_1c` as a number.
+
+```{r}
+test = cor(trees)
+print(test)
+question_1c<-0.97
+```
+
+```{r}
+testthat::expect_is(question_1c, "numeric")
+```
+
+---
+
+## Section 2: Deciding Tests
+
+In this section, you will have to decide which test is best to use to answer the question provided. Don't forget to check if the assumptions are met!
+
+### Question 2 (3 pts total)
+
+You will be using the data from the `OrchardSprays` to answer the following questions. According to the OrchardSprays' documentation, it represents an experiment that was conducted to assess the potency of various constituents of orchard sprays in repelling honeybees.  
+
+```{kernel = "ir"}
+head(OrchardSprays)
+```
+
+#### Question 2 Part 1 (1.5 pts)
+
+Given the data you've imported, **what test would be best for testing each of the following below**? Make sure to investigate the data frame, and then save your answer as an object, for example:
+`question2a <- "linear model"`
+
+- \(A\) Is the data for each treatment normally distributed? Store your answer as a character string in the variable `question2_1a`
+- \(B\) What is the effect of the treatment on the decrease in the solution of the volume? Store your answer as a string in the variable `question2_1b`
+- \(C\) For only the cells on row 1, what is the difference in the decrease in the solution between treatment A and treatment H? Store your answer as a string in the variable `question2_1c`. Hint: consider whether each row or column have independent cells of solution or not.
+
+```{r}
+data(OrchardSprays)
+dist<- by(OrchardSprays$decrease,
+   OrchardSprays$treatment,
+   shapiro.test)
+question2_1a<-"Shapiro–Wilk test"
+aov_model <- aov(decrease ~ treatment, data = OrchardSprays)
+#summary(aov_model)
+question2_1b<-"One-way ANOVA"
+row1<-OrchardSprays[OrchardSprays$rowpos==1,]
+lm_model = lm(decrease~treatment,data=row1)
+summary(lm_model)
+question2_1c<-"linear regression"
+```
+
+```{r}
+testthat::expect_is(question2_1a, "character")
+testthat::expect_is(question2_1b, "character")
+testthat::expect_is(question2_1c, "character")
+```
+
+#### Question 2 Part 2 (1.5 pts)
+
+You consider the question in \(B\) the most interesting: What is the effect of the treatment on the decrease in the solution of the volume? Run the appropriate test and save the output of it into `question2_2`. If you need to run a post\-hoc test, save it into `question2_3`.
+
+```{r}
+question2_2<- aov(decrease ~ treatment, data = OrchardSprays)
+summary(question2_2)
+question2_3<-TukeyHSD(question2_2)
+print(question2_3)
+plot(question2_3)
+```
+
+```{r}
+
+```
+
+---
+
+### Question 3 (2 pts total)
+
+Consider the `toothgrowth` dataset below. What would be the best design formula to test the effect of the delivery methods \(`supp`\) on toothgrowth \(`len`\)? What about the effect of orange juice \(`OJ`\) at 0.5mg/day? Assume you're using a `DESeq2` style design formula. Store your answer as a character string starting with "~" in variables`question_3a` and `question_3b`respectively. 
+
+```r {kernel="ir"}
+data("ToothGrowth")
+head(ToothGrowth)
+```
+
+```{r}
+data("ToothGrowth")
+head(ToothGrowth)
+model <- aov(len ~ supp, data = ToothGrowth)
+model <- aov(len ~ dose*supp, data = ToothGrowth)
+summary(model)
+question_3a <- "~ supp"
+question_3b <- "~ dose * supp"
+
+```
+
+```{r}
+testthat::expect_true(startsWith(question_3a, "~"))
+testthat::expect_true(startsWith(question_3b, "~"))
+```
+
+---
+
+## Section 3: Interpretation
+
+#### \(2 pts total\)
+
+In this section, you are given a figure and some background from a paper and it will be your job to determine:
+
+1. What is the name of the specific analysis used to generate the curves in the plots? Store your answer in `question_4a`.
+2. For plot A, were their results significant or not? Store your answer as "Y" for yes, or "N" for no in `question_4b`.
+3. What do the results mean for their study based on both plots A and B? Answer this in the "Manually graded answer" box.
+
+> <img src="https://www.nejm.org/cms/10.1056/NEJMoa1903387/asset/fe95e095-3dcb-4fd0-9cf3-278b7a347c6b/assets/images/large/nejmoa1903387_f2.jpg"   width="565.219px"  height="786.328px"  style="object-fit:cover"/>
+>
+> **Methods**
+>
+> We conducted a randomized, double\-blind, placebo\-controlled, phase 3 trial to evaluate the efficacy of olaparib as maintenance therapy in patients who had a germline BRCA1 or BRCA2 mutation and metastatic pancreatic cancer and disease that had not progressed during first\-line platinum\-based chemotherapy. Patients were randomly assigned, in a 3:2 ratio, to receive maintenance olaparib tablets \(300 mg twice daily\) or placebo. The primary end point was progression\-free survival, which was assessed by blinded independent central review.
+
+<span style='color:#d9e3f0'>Taken from: </span>https://www.nejm.org/doi/full/10.1056/NEJMoa1903387
+
+```{r}
+question_4a <- "Survival analysis"
+question_4b <- "Y"
+```
+
+Plot A shows that patients receiving olaparib had a significantly longer progression-free survival compared to those receiving placebo, meaning that olaparib is an effective drug for progession-free survival compared to placebo
+
+Plot B shows overall survival, olaparib and placebo curves overlap substantially and no statistically significant difference is observed. Suggesting that Olaparib doesn't change the overall survival of patients
+
+In conclusion, Olaparib delays the development of Metastatic Pancreatic Cancer for individuals with germline BRCA mutations, however it doesn't significantly change the overall survival of patients.
+
+```{r}
+testthat::expect_is(question_4a, "character")
+testthat::expect_true(question_4b %in% c("Y", "N"))
+```

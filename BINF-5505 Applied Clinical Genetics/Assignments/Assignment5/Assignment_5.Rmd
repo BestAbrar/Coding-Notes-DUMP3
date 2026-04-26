@@ -1,0 +1,184 @@
+---
+title: "Assignment_5_AF"
+author: "Abrar Faruque"
+date: "2026-03-18"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(RColorBrewer)
+library(gamma)
+library(DESeq2)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(pheatmap)
+library(RColorBrewer)
+library(knitr)
+library(kableExtra)
+library(org.Hs.eg.db)
+
+# setwd("C:/Users/Delwar/Desktop/Humber/WINTER SEMESTER/BINF-5505 Applied Clinical Genetics/Assignments/Assignment5")
+```
+
+#Import Seq Data
+
+```{r}
+#Load count data and annotation metadata
+# cts <- read.csv("GSE205748_raw_counts_GRCh38.p13_NCBI.tsv", sep = "\t", row.names="GeneID")
+# anot <- read.csv("dataset_annotation.csv")
+# rownames(anot)<-anot$file
+
+#Load count data and annotation metadata
+cts <- read.csv("GSE205748_read_counts.csv", sep = "\t", row.names="ID")
+anot <- read.csv("dataset_annotation.csv")
+rownames(anot)<-anot$patient
+
+# Match the ID column of df1 to the column names of df2
+anot <- anot %>% arrange(match(rownames(anot), colnames(cts)))
+
+print(rownames(anot))
+print(colnames(cts))
+```
+
+#Perform DESeq
+
+```{r}
+dds <- DESeqDataSetFromMatrix(cts, anot, ~ Type)
+dds$Type <- relevel(dds$Type, ref = "Healthy control skin")
+
+#Pre-filter
+keep <- rowSums(counts(dds) >= 10) >= 2
+dds <- dds[keep, ]
+# Run DESeq() and results()
+dds_out <- DESeq(dds)
+res <- results(dds_out)
+# res
+res_df <- as.data.frame(res)
+res_df <- res_df[order(res_df$padj), ]
+head(res_df)
+```
+
+```{r}
+plotMA(res)
+```
+
+```{r}
+#adding column to label genes as up/Down regulated or 'NA' if pvalue is insignificant
+res_df <- data.frame(res)
+res_df$DEG <- "NA"
+res_df$DEG[res_df$log2FoldChange > 1 & res_df$pvalue < 0.05] <- "Up-regulated"
+res_df$DEG[res_df$log2FoldChange < -1 & res_df$pvalue < 0.05] <- "Down-regulated"
+head(res_df)
+table(res_df$DEG)
+
+ggplot(data = res_df, aes(x = log2FoldChange, y = -log10(padj), col = DEG)) +
+        geom_point() +
+        theme_minimal()  +
+        labs(
+          title = "Overall HGSOC Expression after 6 days of culture",
+          colour = "Expression"
+        )+
+        scale_color_manual(values = c("blue", "black", "red")) +
+        geom_vline(xintercept = c(-0.6, 0.6), col = "grey50",linetype = 'dashed') +
+        geom_hline(yintercept = -log10(0.05), col = "grey50",linetype = 'dashed')
+```
+
+```{r}
+vsd <- vst(dds, blind = FALSE)
+top_genes <- rownames(subset(res_df, padj < 0.05))[1:20]
+mat <- assay(vsd)[top_genes, ]
+mat <- mat - rowMeans(mat)
+
+print(top_genes)
+
+pheatmap(mat,
+         annotation_col = anot[, "Type", drop = FALSE],
+         main = "Top 20 Differentially Expressed genes")
+```
+
+```{r}
+top_genes <- res_df %>%
+  slice_min(padj,n=10)
+top_genes <- head(top_genes,n=10)
+# for table formatting
+gene_ids <- sub("\\..*", "", rownames(top_genes)) # remove ensemble id version number 
+ensembl_ids <- AnnotationDbi::select(org.Hs.eg.db, 
+                                     keys = gene_ids,
+column = c("SYMBOL", "GENENAME"),
+keytype = "ENSEMBL")
+ensembl_ids %>%
+  mutate(DEG = top_genes$DEG) %>%
+  kbl() %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+# Performing PCA analysis
+```{r}
+#' Changing top_genes to include all genes used in the DEseq Differential expression
+#' analysis
+norm_counts <- counts(dds, normalized = FALSE)
+top_genes <- res_df %>%
+  slice_min(padj,n=17240)
+mat <- norm_counts[rownames(top_genes), ]
+mat <- log2(mat + 1)
+mat_scaled <- t(scale(t(mat)))
+annotation_col <- data.frame(
+  Type = colData(dds)$Type
+)
+rownames(annotation_col) <- colnames(mat_scaled)
+
+# expression_matrix: genes x samples seq (RNA Seq File)
+pca <- prcomp(t(mat_scaled), scale. = FALSE)
+pca_df <- data.frame(
+  PC1 = pca$x[,1],
+  PC2 = pca$x[,2],
+  Type = colData(dds)$Type
+)
+# 
+# ggplot(pca_df, aes(x = PC1, y = PC2, colour = row.names(pca_df))) +
+#   geom_point(size = 3) +
+#   theme_classic() +
+#   labs(
+#     x = paste0("PC1"),
+#     y = paste0("PC2"),
+#     title = "PCA of each RNA-seq Run",
+#     colour = "RNA-seq Run (patient_day)"
+#   )+
+#   scale_color_brewer(palette="Spectral")
+# 
+# expression_matrix: splitting matrix based on patient and day (RNA Seq File)
+pca_df2 <- pca_df %>%
+  mutate(
+    Type = as.character(Type),
+  ) %>%
+  pivot_longer(cols = c(Type),
+               names_to = "ColorBy",
+               values_to = "Group")
+
+# # plot PC variance in a scree plot
+# variance_pca = pca$sdev^2
+# # proportion variance
+# variance_pca / sum(variance_pca) -> prop_pca
+# 
+# plot(prop_pca,
+#      xlab = "Principal Components",
+#      ylab = "Proportion of Variance Explained",
+#      ylim = c(0, 1))
+
+ggplot(pca_df2, aes(x = PC1, y = PC2, colour = Group)) +
+  geom_point(size = 3) +
+  theme_classic()+
+  facet_wrap(~ ColorBy, scales = "free") +
+  labs(
+    title = "PCA of RNA-seq Samples",
+    colour = "Type",
+    x = paste0("PC1"),
+    y = paste0("PC2"),
+  )+
+  scale_color_brewer(palette="Set1")
+```
+
+# Short interpretation of the results
+There is a significant difference in gene expression between normal and lesion samples, the top differential expressed genes are mostly up regulated as per the volcano plot.

@@ -1,0 +1,567 @@
+# Week 6: Best practices for data visualizations in ggplot2
+---
+
+Today's class will give you an overview of `ggplot2`, the foundation upon which numerous advanced graphics functions are built.
+
+Before we get started, let's think about what makes a figure a good figure.
+
+
+## A "good" figure
+
+What makes a figure a good figure? Let's look at what a leading journal, Nature says about figures submitted to it:
+
+>"Figures should be as small and simple as is compatible with clarity. The goal is for figures to be comprehensible to readers in other or related disciplines, and to assist their understanding of the paper. Unnecessary figures and parts (panels) of figures should be avoided: data presented in small tables or histograms, for instance, can generally be stated briefly in the text instead. Avoid unnecessary complexity, colouring and excessive detail."
+
+The Nature formatting guide goes on to mention some specific guidelines:
+
+>- "Lettering in figures (labelling of axes and so on) should be in lower-case type, with the first letter capitalized and no full stop.
+>- Units should have a single space between the number and the unit, and follow SI nomenclature or the nomenclature common to a particular field. Thousands should be separated by commas (1,000). Unusual units or abbreviations are defined in the legend.
+>- Scale bars should be used rather than magnification factors.
+>- Layering type directly over shaded or textured areas and using reversed type (white lettering on a coloured background) should be avoided where possible.
+>- Where possible, text, including keys to symbols, should be provided in the legend rather than on the figure itself."
+
+<span style='font-size:x-small'>From: </span>[<span style='font-size:x-small'>https://www.nature.com/nature/for\-authors/formatting\-guide</span>](https://www.nature.com/nature/for-authors/formatting-guide)
+
+Clarity and comprehension can be accomplished partly with using the appropriate type of plot to display data. For example:
+
+- Histograms are a good way to visualize counts of categorical data and proportions
+- Bar charts are a good way of relating categorical data and numeric data that aren't counts
+- Box,  whisker and violin plots are good for looking at the spread of your data and potential outliers.
+- Line graphs are good to show how data changes over time
+- Scatterplots are great to show the relationship between two variables
+
+While it is important to clearly tell a story, sometimes figures may also be misleading, so avoiding misleading features can also improve a figure.
+
+**What your thoughts on what makes a good figure? Do you agree with what Nature has listed in their guide?**
+
+
+
+
+## Figure captions
+
+>"Each figure legend should begin with a brief title for the whole figure and continue with a short description of each panel and the symbols used. If the paper contains a Methods section, legends should not contain any details of methods. Legends should be fewer than 300 words each. All error bars and statistics must be defined in the figure legend"
+
+<span style='font-size:x-small'>From: </span>[<span style='font-size:x-small'>https://www.nature.com/nature/for\-authors/formatting\-guide</span>](https://www.nature.com/nature/for-authors/formatting-guide)
+
+Figures and their captions \(legends\) go hand\-in\-hand \-\- you cannot have one without the other. However, figure captions should be able to be effective even as standalone, where they are descriptive enough so that you can understand the figure without referring to the main text. Each figure should only refer to one research question and hypothesis. However, if you have several analyses that answer one research question \(RQ\), you may be able to combine the figures into a multi\-panel figure.
+
+A figure caption typically includes the following criteria
+
+- number
+- a declarative summary title
+- a brief explanation of the axes and important elements \(lines, error bars, points, symbols, etc.\)
+- brief methods
+- statistical information
+- should be below your figure \(no title at the top of your figure, unless it is a label to delineate multiple panels, e.g., "a", "b", "c"\)
+
+Below are some examples:
+
+---
+
+Let's start with a really well-made figure and a good caption:
+
+```{r}
+knitr::include_graphics("/Users/mariannetoste/Downloads/OneDrive_1_2-4-2026/image1.jpg")
+
+```
+
+
+
+This figure caption includes a brief title (bolded here, but that is not mandatory, although it is helpful), the y versus x, some methods about where the data came from (years, number of cars, etc.), and the multiple panels. Note that it could've started with "Fuel efficency declines for cars from the 1970s both displacement and horse power" -- this makes the title also declarative, where the main results are clear.
+
+---
+```{r}
+knitr::include_graphics("/Users/mariannetoste/Downloads/OneDrive_1_2-4-2026/image2.jpg")
+
+```
+
+<img src="figures/image2.jpg" style="max-width:100%" />
+
+This is another great figure caption. Again, the declarative title is bolded. Important elements are indicated (averages, error bars), and important information from the methods are included (number of control & treated plants, the treatment).
+
+---
+
+Now, let's look at some bad figures and figure captions:
+
+```{r}
+knitr::include_graphics("/Users/mariannetoste/Downloads/OneDrive_1_2-4-2026/image0.jpg")
+
+```
+
+First of all, this is a screenshot, and a very poorly sized and pixelated screenshot. Always save your figures and use high-quality, especially for presentations and posters where the figures will be blown up larger than a regular letter-sized paper! Second of all, what is "Time" and "Cost"? The figure caption is much more than just vague, it is non-descriptive. What do the x-axis and y-axis show? What kind of data was plotted? We may never know.
+
+---
+```{r}
+knitr::include_graphics("/Users/mariannetoste/Downloads/OneDrive_1_2-4-2026/image3.png")
+
+```
+
+
+
+Apart from the fact that this is a 2D plot rendered in 3D (whyyyyy), the figure caption is incredibly lacking. What is GNH? If it is explained in your text, great; a good rule of thumb is to also spell out the acronym in the Figure 1, at the very least. Let's give these authors the benefit of the doubt and assume that they explained it in Figure 1, as we are now in Figure 11. Next, how do they define "gender" if we have "Female", "National", and "Male" -- what is "National?". Apart from the confusing gender on the x-axis, what is the y-axis plotting? This is especially important when we scale the y-axis. For example, in this case, the y-axes does not start from 0; in other cases where you might have to log-transform or scale your y-axis, make note of it in your caption so that readers do not misinterpret the figure.
+
+
+
+
+## Packages and Datasets
+
+Now, let's load our packages and our dataset. For today's class, we will use the `surveys` dataset, which is contains information about species caught in plots within a study area, and their weight and taxa information.
+
+
+```{r}
+library(tidyverse)
+library(RColorBrewer)
+library(viridis)
+library(car)
+library(ggfortify)
+library(ggplot2)
+
+surveys <- read_csv("https://ndownloader.figshare.com/files/2292169")
+head(surveys)
+
+```
+
+## ggplot2 ingredients
+
+First, remember the three ingredients that are required in a plot in ggplot2:
+* the data
+* the aesthetics
+* geometry
+
+
+## 1D Plots
+```{r}
+surveys %>%
+  group_by(species) %>%
+  tally() %>%
+  arrange(desc(n)) %>%
+  filter(n>0) %>%
+  ggplot (aes(y=species, x=log(n))) + 
+  geom_bar(stat="identity",width = .9)+
+  labs(
+    title = " Total number of observations for each species",
+    x = "log(Count)",
+    y = "Species"
+  )
+
+```
+
+
+### Histograms
+
+Histograms plot one numerous continuous variable along the x-axis -- only define the x-axis in the aesthetics. The bars along the y-axis shows a count of the number of times it appears (i.e., frequency). Histograms are used to look at distributions, typically used to check normality. You have the freedom to add a categorical variable to colour by. Here, let's plot the distribution of hindfoot_length, and then colour by sex.
+
+
+```{r}
+
+ggplot(data = surveys, aes(x = hindfoot_length, fill = sex)) +
+    geom_histogram(position = "dodge", # stack is the default
+                  # bins = 10, # adjust number of bins
+                  binwidth = 1) # adjust size of bins based on x-axis units
+
+```
+```{r}
+surveys %>%
+  drop_na(hindfoot_length) %>% 
+  group_by(sex, species) %>%
+  summarize(mean = mean(hindfoot_length,)) %>%
+  ggplot(aes(x = mean, y = species, fill = sex)) +
+  geom_bar(stat="identity",position = "dodge")+
+  labs (
+    title = "mean hindfoot length versus species by sex",
+    x = "Length",
+    y = "Species"
+  )
+  
+
+```
+
+### Density Plots
+
+Similar to a histogram, a density plot also shows frequency, except it uses a trendline instead of bars. The larger the amount of space under the line, the more frequent or abundant that x-axis value is. This is a useful alternative to the histogram for continuous data that comes from an underlying smooth distribution. Again, you have the freedom to add a categorical variable to colour by.
+
+
+```{r}
+
+ggplot(data = surveys,
+      aes(x = hindfoot_length)) + 
+    geom_density()
+
+ggplot(data = surveys,
+      aes(x = hindfoot_length)) + 
+    geom_density(adjust = 1/2)
+
+ggplot(data = surveys,
+      aes(x = hindfoot_length, colour = sex)) + 
+    geom_density()
+
+```
+
+```{r}
+
+ggplot(data = surveys,
+      aes(x = hindfoot_length, colour = sex)) +
+    geom_density(aes(linetype = sex),
+         # linetype = "dashed"
+                ) + # solid, dotted, dotdash, longdash, twodash, blank
+    scale_linetype_manual(values = c("F" = "dotdash", "M" = "solid"))
+
+```
+
+Let's combine the histogram and the density plot! Remember that we need to make sure we scale the histogram to the same scale as the density plot.
+
+
+```{r}
+ggplot(data = surveys,
+      aes(x = hindfoot_length)) +
+    geom_histogram(aes(y = after_stat(density),
+                      fill = sex),
+                  position = "dodge"
+                  ) +
+    geom_density(aes(colour = sex)) +
+    labs(x = "Hindfoot length (cm)",
+         y = "Density")
+
+```
+
+
+The great thing about `tidyverse` is that we can use pipes to create a powerful data exploration and visualization workflow using both `dplyr` and `ggplot2`. For example, we can selectively modify, filter, and create new columns in dplyr, and then plot these new columns. Let's try this by modifying histogram we have created already by plotting the number of animals found, grouped by the species, or grouped by the year of observation.
+
+Note that there is no keyboard shortcut for the pipe operator in CoCalc. It will work in R, but for now, we will have to just manually type it out.
+
+
+```{r}
+
+surveys %>%
+    drop_na() %>%
+    group_by(year, species, sex) %>%
+    tally() %>%
+    arrange(desc(n)) %>% # n is a new column created by tally()
+                         # arrange() will order a variable
+                         # we are ordering in descending order, and the variable we are ordering is `n`
+    ggplot(aes(x = n, fill = sex)) +
+    geom_histogram(position = "dodge")
+
+```
+
+### Bar Plot
+
+Bar plots graph one categorical variable along the x-axis, again with frequency on the y-axis. We can make lots of modifications to this, including rotating or stacking the bars.
+
+
+```{r}
+
+ggplot(data = surveys,
+       aes(y = sex, fill = sex)) +
+    geom_bar(aes(fill = genus), # this fill is the final fill()
+             position = "dodge") + # default is `stack`
+    labs(y = "Sex")
+
+```
+
+## 2D Plots
+
+Now, let's add a second dimension, so that we are plotting variables on both the x-axis and y-axis.
+
+
+### Scatterplots
+
+The geom_point() layer plots the relationship between two continuous variables to create scatterplots. Let's plot weight versus hindfoot length here.
+
+
+```{r}
+
+ggplot(data = surveys,
+      aes(x = hindfoot_length, y = weight)) +
+    geom_point(na.rm = TRUE,
+              size = 2,
+              shape = 16,
+              alpha = 0.6)
+
+```
+
+Let's see if these points, and roughly four clusters, correspond to some categorical variable. We can add a categorical variable to the aesthetics line or the geom_point layer. The difference between adding the argument into the main ggplot() line versus the geom_ layer is that the former results in global colours and shapes, while the latter only changes the colours and shapes within that layer.
+
+
+```{r}
+
+ggplot(data = surveys,
+      aes(x = hindfoot_length, y = weight)) +
+    geom_point(na.rm = TRUE, aes(colour = sex,
+                                shape = sex,
+                                size = weight),
+              alpha = 0.5) +
+    scale_shape_manual(values = c(7, 8))
+
+```
+
+Looks like sex is not differentiating the groups! Let's investigate how the different taxonomic classifications may be grouping these points.
+
+
+```{r}
+
+ggplot(data = surveys, aes(x = hindfoot_length, y = weight, colour = taxa)) +
+    geom_point()
+
+```
+
+Woah!! Looks like we only have one taxa in our data. Rats! Again, let's use the power of `dplyr` to filter out cases of the other taxa, and all of our missing values, and just plot Rodents, colouring them by a lower hierarchy, such as genus.
+
+
+```{r}
+
+surveys %>% 
+    filter(taxa == "Rodent") %>%
+    filter(!is.na(hindfoot_length) & !is.na(weight)) %>%
+    ggplot(aes(x = hindfoot_length, y = weight, colour = genus)) + 
+    geom_point() +
+    theme_classic()
+    # theme_minimal()
+    # theme_bw()
+    # theme_void()
+
+```
+
+This looks better! And, it looks like we do have some separation in our points, where each genus has a specific hindfoot length and weight. Great!
+
+Quick note about themes: the simplier and the more accessible, the better! You do not need a lot of fancy colours, fonts, shapes, etc. I like `theme_classic()`, but other great options include `theme_minimal()` or `theme_bw()`.
+
+
+### Scatterplots with predictive models
+
+
+Remember that visualizations on their own do not tell us information about our data. Instead, visualizations pair with statistical tests to help us actually **see** what is going on in our data. For example, last week we saw some examples of linear models and generalized linear models. Typically, we visualize our two-dimensional data first, check what kind of data we have (e.g., count data, binomial, continuous, discrete, etc.), and use all the evidence we have in order to decide what kind of statistical analyses we should run; then, we plot our data cleanly with our results. Let's do that with the newest models we learned about: Poisson and logistic binomial.
+
+Let's go back to our surveys dataset, and coerce our data so we have a new count column. Is there a relationship between the number of animals found and their hindfoot length measurement? To add our model predictions, we use the `geom_smooth()` function, and we have to specify the family.
+
+
+```{r}
+
+surveys %>%
+  drop_na() %>%
+  group_by(plot_id, sex) %>%
+  summarize(count = n(), # min, max, sd, n, mean, median
+           mean_hf = mean(hindfoot_length),
+           min_hf = min(hindfoot_length)) %>%
+  ggplot(aes(x = mean_hf, y = count, colour = sex)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "glm", method.args = list(family = "poisson"),
+             se = FALSE, linetype = "dotdash") +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dotted") +
+  geom_vline(aes(xintercept = 25),
+            colour = "coral",
+            linetype = "dotted") +
+  theme_classic()
+
+```
+
+Great! Let's do the same but for binomial data! Is there a pattern between hindfoot length and whether the weight was recorded or not? Maybe larger or smaller animals didn't have a weight measurement! For fun, let's also focus on cases where sex is also not recorded to see if the missing data is pervasive. First, let's create a new column for whether an individual animal had a measurement for weight or not.
+
+
+```{r}
+
+surveys %>%
+    group_by(plot_id) %>%
+    filter(!is.na(hindfoot_length)) %>%
+    mutate(weight_recorded = case_when(!is.na(weight) ~ 1,
+                                      is.na(weight) ~ 0)) %>%
+    ggplot(aes(x = hindfoot_length, y = weight_recorded, colour = sex)) +
+    geom_point() +
+    geom_smooth(method = "glm", method.args = list(family = "binomial"),
+               se = FALSE) +
+    geom_smooth(method = "lm", se = FALSE, colour = "blue", linetype = "dotted") +
+    theme_classic()
+
+```
+
+Remember that although these models are plotted directly onto the visualization, you must also report the results from the actual statistic test (in this case, generalized linear model) in the text and/or on a table.
+
+
+### Line plot
+
+A line plot can connect your observations based on your x-axis. Let's give that a try by plotting how the number of species changes over time. That means we will have to start in `dplyr` first to tally how the number of species per year, and then plot it in `ggplot`.
+
+
+```{r}
+
+surveys %>% 
+    group_by(year, species) %>%
+    tally() %>%
+    ggplot(aes(x = year, y = n, group = species)) + # colour will group your grouping variable
+    geom_line(
+             # linetype = "dotdash",
+             aes(linetype = species)) + # change linetype for each species
+    theme_bw()
+
+```
+
+### Box plots and violin plots
+
+Continuing on plotting 2D plots, how can we plot one categorical and one continuous variable? There are several options, including box-and-whisker plots, violin plots, and bar plots.
+
+In this section, we are also going to modify our non-graphical elements, such as axes labels and titles, and colours, in order to increase the readability and aesthetics of our plots.
+
+Let's start with a boxplot.
+
+
+```{r}
+
+surveys %>% 
+    filter(!is.na(hindfoot_length)) %>%
+    ggplot(aes(x = genus, y = hindfoot_length, colour = genus)) +
+    geom_boxplot(aes(middle = mean(hindfoot_length)),
+                outlier.alpha = 0.1,
+                outlier.colour = "red") +
+    scale_x_discrete(name = "Genus") +
+    scale_y_continuous(name = "Hindfoot Length (cm)",
+                      breaks = seq(0, 75, 15),
+                      limits = c(0, 80)) +
+    # theme() theme changes will be overwritten here
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+         axis.line = element_line(linewidth = 0.5),
+         axis.title.y = element_text(size = 16),
+         axis.ticks.x = element_blank(),
+         legend.position = "none") # top, bottom, left
+
+```
+
+Quick note about colours: remember also that about 10% of men are colourblind to some extent, and many folks have visual limitations. There are several colourblind-friendy palettes built into R, including `RColourBrewer` and `viridis`, amongst others. If you want to change the colours from base R to Brewer or viridis, just use the argument `scale_colour_brewer` or `scale_colour_viridis`. Let's try this below on the violin plot, which is a combination of a boxplot and a density plot.
+
+
+```{r}
+
+par(mar = c(3,4,2,2))
+display.brewer.all()
+
+```
+
+```{r}
+
+viridis_names <- c("magma", "inferno", "plasma", "viridis", "cividis", "rocket", "mako", "turbo")
+
+n <- 50
+par(mfrow=c(4,2), mar = c(1,1,1,1))
+f <- sapply(1:8, function(x)
+                 image(matrix(1:n, n, 1), col = viridis(n=n, option = LETTERS[x]), axes = FALSE, main = viridis_names[x]))
+                 
+# There are eight palettes available, that can be accessed giving values A to H to the options parameter. For instance, the cividis palette is accessed with option = "E".
+
+```
+
+```{r}
+
+surveys %>%
+    filter(!is.na(hindfoot_length)) %>%
+    ggplot(aes(x = genus, y = hindfoot_length, colour = genus)) +
+    geom_violin() +
+    # scale_colour_brewer(palette = "YlGn") +
+    scale_color_viridis(option = "E", discrete = TRUE) +
+    theme(axis.text.x = element_text(angle = 50, hjust = 1))
+
+```
+
+### Column graphs
+
+Column graphs are typically used to plot summary statistics, such as counts, means and error bars. Let's plot average hindfoot length for each genus, and their standard error.
+
+Quick note about the difference between standard deviation, standard error, and confidence intervals:
+* standard deviation (SD): variation within a single sample
+* standard error (SE): variation that measures how accurate the sample is to the population
+* confidence intervals (CI): probability that your mean is wrong (95% CI = your estimate has a 5% chance of being wrong)
+
+
+```{r}
+
+surveys %>%
+    filter(!is.na(hindfoot_length)) %>%
+    group_by(genus) %>%
+    summarize(mean_hf = mean(hindfoot_length),
+             sd = sd(hindfoot_length),
+             number = n(),
+             se = sd/sqrt(number)) %>% # sd divided by the square root of the # of observations
+    ggplot(aes(x = genus, y = mean_hf, fill = genus)) +
+    geom_col() +
+    geom_errorbar(aes(ymax = mean_hf + sd, ymin = mean_hf - sd),
+                 colour = "red",
+                 width = 0.5) +
+    geom_text(aes(y = 40, label = c("*", "", "", "*", "*", "", "", "", "", "")))
+
+```
+
+## Tables
+
+Sometimes, the best way to display data is in a table instead of a figure. Typically, you may choose to use a table to present a high density of numerical values that may not be valuable to show in a figure (e.g., does not contribute to your argument).
+
+Some formatting tips for creating aesthetically-pleasing and effective tables:
+- every column should have a brief heading
+- use horizontal lines (with different thicknesses)
+- use bold for significant results
+- use Word, not Excel, Jupyter or RStudio! The formatting is not perfect yet in coding languages
+
+Table captions should go above the table.
+
+---
+
+Let's look at some examples!
+
+```{r}
+knitr::include_graphics("/Users/mariannetoste/Downloads/OneDrive_1_2-4-2026/table1.jpeg")
+
+```
+
+
+The following is an example of a well-designed table (taken from the guidelies from a journal). It has a clear and concise legend/caption, the data is divided into categories for clarity, with units, and there is sufficient ane equal spacing between columns and rows. It does have some notes about the data, and it uses superscripts with footnotes that go below the table.
+
+---
+
+Another good way to use a table is to display the outputted statistics from regressions (glm, lm, ANOVAs, PCA, etc.). Do not screenshot the output from R! Instead, make sure to format it into a table.
+
+<img src="figures/table2.jpg" style="max-width:100%" />
+```{r}
+knitr::include_graphics("/Users/mariannetoste/Downloads/OneDrive_1_2-4-2026/table2.jpg")
+
+```
+
+
+Here are the results from a linear model! Note that the caption is above the table, and the use of bolding to separate each table into sub-tables, and to indicate the significant variables in the linear model
+
+---
+
+
+```{r}
+knitr::include_graphics("/Users/mariannetoste/Downloads/OneDrive_1_2-4-2026/table3.jpg")
+
+```
+
+
+Similarly, you can display some important results from PCAs.
+
+
+
+### When to **not** use a figure
+
+Data can be presented in one of three main ways: text, tables, or figures. It is up to you to decide the best way to present your data or results. Remember that you should be using your results to support an argument and ultimately answer a question, so this choice is really important.
+
+Figures are used to present complex and/or graphic experimental results and analyses. You should be using a figure when the figure will greatly add to the strength of your argument (i.e., it clearly and dramatically illustrates differences between treatments). Figures should also be used when information cannot be as easily or clearly presented in the text or a table. Finally, use a figure when it answers your research question clearly.
+
+It is best to not use a figure when:
+- you are displaying summary statistics of the data (e.g., you are using histograms, initial scatterplots or boxplots when first exploring the data, which can be for development use, or can go into an appendix)
+- the information can be quickly summarized in the text
+- it is not important for your research question and does not reveal any important results or trends
+
+
+# Recap
+
+Wow, that was a lot of plotting! Hopefully, you can see now that visualizations can be so powerful. In this lesson, we've talked about several things:
+
+- How to write figure captions
+- Different types of visualizations that we can make in ggplot
+- Different types of modifications that can improve accessibility and aesthetics
+- Tables
+
+
+Each visualization fits certain data, and although our choice of modifications that we can make are endless, some modifications are better suited for certain visualizations. I truly hope that you all have fun visualizing and playing around with your data.
+
+And, just for fun, know that even experienced scientists can make mistakes! Check out some [spectacularly bad visualizations here](https://www.biostat.wisc.edu/~kbroman/topten_worstgraphs/).
+

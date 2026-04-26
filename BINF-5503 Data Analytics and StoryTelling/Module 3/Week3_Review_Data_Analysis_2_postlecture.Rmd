@@ -1,0 +1,722 @@
+---
+title: "Week 3: Review of Data Analysis Methods 2 (Post-lecture)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Week 3: Review of Data Analysis Methods 2
+
+---
+
+This week, we will continue working through our review of data analysis methods.
+
+We will look at regression analysis, the final piece in inferential statistics that we started discussing last week. 
+
+In addition, we will also be looking into some statistical tools that are commonly used in bioinformatics: Survival Analysis, Principal Component Analysis \(PCA\), and Differential Gene Expression \(DGE\) analysis
+
+---
+## Set Up
+
+Let's load the necessary packages for today's class.
+
+```{r}
+library(tidyverse)
+library(ggfortify)
+library(MASS)
+library(car)
+library(rstatix)
+library(survival) 
+library(DESeq2)
+library(pheatmap)
+
+sessionInfo()
+```
+
+## Linear regressions
+
+---
+
+Linear regressions are used to find relationships between dependent (outcome) and independent (predictor) variables.
+
+### Simple Linear Regression
+
+$y = mx + intercept$
+
+The simplest linear regression uses one predictor to estimate one outcome variable. We can use the function `lm` for this. Let's use the dataset `Seatbelts` in this example, after coercing the data into a dataframe. `Seatbelts` gives totals of numbers such as the number of drivers killed and the kilometers travelled in Great Britain for each month between 1969 and 1984. What is the effect of kilometers driven `kms` and the number of drivers killed `DriversKilled`? Simple linear regression is generally used on Gaussian, normally distributed outcomes.
+
+Before we start, the assumptions of linear models are: normal distribution of residuals, homogeneity of variance of residuals, and independent observations.
+
+```{r}
+Seatbelts <- as.data.frame(Seatbelts)
+Seatbelts$law <- factor(Seatbelts$law) 
+
+# Other than head, what are some other ways to explore the Seatbelts dataset?
+head(Seatbelts)
+summary(Seatbelts)
+dim(Seatbelts)
+?Seatbelts
+
+# DriversKilled seems visually normally distributed
+hist(Seatbelts$DriversKilled)
+
+# How are kms and DriversKilled related approxiately?
+plot(Seatbelts$kms, Seatbelts$DriversKilled)
+ggplot(Seatbelts, aes(x = kms, y = DriversKilled)) + 
+    geom_point() + 
+    theme_bw()
+    
+# How are kms and drivers related approxiately?
+plot(Seatbelts$kms, Seatbelts$drivers)
+ggplot(Seatbelts, aes(x = kms, y = drivers)) + 
+    geom_point() + 
+    theme_bw()
+```
+
+The function `lm()` uses the **ordinary least squares** (OLS) method by default. The OLS method estimates the relationship between the predictor variable(s) and the response by minimizing the sum of squares in the differences between the observed and model-predicted values of the response variable. In other words, the OLS method *seeks to identify the one line that passes through each and every data point as closely as possible*.
+
+```{r}
+# Run lm() and summary() here
+lm_seatbelts <- lm(DriversKilled ~ kms, data = Seatbelts)
+summary(lm_seatbelts)
+plot(lm_seatbelts)
+```
+
+What values do we report in a linear model?
+
+The first value is the test statistic F\-statistic = 21.84
+
+You also have to report the number of predictors you have. In this case, there is 1 predictor.
+
+When reporting the results from a linear model, you will also need to report the degrees of freedom. Degrees of freedom are the number of independent variables \(pieces of information\) used to calculate a statistic, and it tells you how many items can be randomly selected before constraints must be put in place.
+
+Consider this example: imagine selecting ten individual patients with an average breast tumour size of 25 mm. The total number of patients that will make up our data set is the sample size, so N = 10. In this example, 9 (10 - 1) tumours can be randomly picked, with the 10th patient needing to have a tumour that adheres to the 25 mm average. So, degrees of freedom = 9.
+
+R will typically report the degrees of freedom, but the formula for a linear model is: N \- number of parameters. In this case, we have 192 datapoints, and we are estimating 2 parameters: the intercept and the slope. So, df = 190. The number of predictors & df should be in a subscript.
+
+Finally, you should report the p\-value.
+
+Putting it all together: from these results, we can see that there is a significant effect of `kms` \($F_{(1, 190)} = 21.84$, $p = 5.6 * 10^{-6}$\) on `DriversKilled`. For every 1 increase in kilometers driven, there is a $-2.774*10^{-3}$ change in drivers killed. An increase in kilometers of vehicle driven results in a decrease of drivers deaths
+
+### Multiple Linear Regression with Interactions
+
+$y = intercept + m_1 x_1 + m_2  x_2 + m_3 x_1  x_2 + ... $
+
+What if we wanted to consider more than one predictor variable?
+Let us incorporate in `law`. When `law` = 1, that month occurred after a law was enacted stating that seatbelts were required.
+
+Interaction variables arise from multiple predictor variables and indicate that we expect the outcome variable to also depend on an interaction between the variables, rather than just the predictor variables themselves. You can use notation such as `x1 * x2` or `x1 + x2 + x1:x2` to create interaction variables.
+
+Note that when using multiple predictor variables, they should not be too highly correlated.
+
+```{r}
+# Run lm() and summary() here taking law into consideration
+# Remember you can run "?lm" to read the documentation
+
+# lm_seatbelts <- lm(DriversKilled ~ kms * law, data = Seatbelts)
+lm_seatbelts <- lm(DriversKilled ~ kms + law + kms:law, data = Seatbelts) # this notation is equivalent
+
+summary(lm_seatbelts)
+```
+
+Let's interpret these results!
+
+- For every 1 increase in kilometers driven, there is a $-1.74 * 10 ^ {-3}$ change in drivers killed, while holding law constant \(p &lt; 0.05\). 
+- There was a significant negative effect of kilometers driven and law on the number of drivers killed or injured \($F_{(3, 188)} = 10.44$ , $p < 0.05)$. 
+- With the law enacted, there was a $1.17*10^{1}$ change in drivers killed \(p = 0.84\). 
+- For every 1 increase in kilometers driven and going from before to after the law was put into effect, there is a $-1.57*10^{-3}$ change in drivers \(p = 0.616\). 
+- There was no significant effect of law coming into effect, or their interaction.
+
+## Generalized linear models
+
+---
+
+A generalized linear model \(GLM\) is just a linear model that incorporates a transformation that better allows a linear relationship considering the shape and spread of your data. For instance, if your responses are yes and no, which are typically coded as 1s and 0s, your data is binary; 1s and 0s are not normally distributed data. In cases like these we need to modify our underlying linear modeling distribution to best match our data distribution.
+
+A GLM will look similar to a linear model. Instead of the function `lm()`, we will use `glm()`, which also takes arguments for the model formula and data. Importantly, you need to specify the `family`, which you will set to Poisson, binomial, or other distribution you are applying to this model. It’s also worth noting that each family has a default link function that automatically transforms the data in the GLM, and it can be changed but you likely won't need to in this course. You can learn more by reading through the documentation `?glm`.
+
+`lm()` is equivalent `glm(..., family = gaussian)` and would use the identity link function.
+
+### Poisson
+
+$log(y) = mx + intercept$
+
+Typically, Poisson distributions are used to model small count data that cannot be negative. The default link function for the Poisson family is `log()`, the natural logarithm.
+
+If your data distribution looks like this and is count data, consider a Poisson glm:
+
+```{r}
+# Variations of the Poisson distribution
+plot(dpois(1:30, lambda = 1), type = "h")
+plot(dpois(1:30, lambda = 5), type = "h")
+```
+
+Let us look at `Highway1` which describes highway data in Minnesota. We plot the distibution and see that it loosely follows the Poisson distribution. We also plotting the number of vehicles against the highway segment, and the graph is showing us that as the highway segment is longer, there are less vehicles, on a log scale.
+
+```{r}
+head(Highway1)
+
+#?Highway1
+hist(Highway1$adt)
+
+ggplot(data = Highway1, aes(x = len, y = adt)) + 
+    geom_point() + 
+    geom_smooth(method = "glm", method.args = list(family = 'poisson')) + 
+    theme_bw()
+```
+
+To run a glm, we can use our y~x formula, and indicating the family of the distribution. After that, we can check the summary of our results.
+
+We will need to exponentiate our coefficients, since the y-axis is on a log-scale. And, the slope is not exactly the slope since we are working on a curved scale, so it is a multiplicative effect.
+
+$log(y) = mx + intercept$
+
+$e^{log(y)} =  e^{mx + intercept}$
+
+$y =  {e^m}^x * e^{intercept}$
+
+```{r}
+# Run glm() and summary() here, and also exp() to get interpretable coefficients
+# Remember you can run "?glm" to read the documentation
+glm_highway <- glm(adt ~ len, data = Highway1, family = poisson)
+summary(glm_highway)
+
+exp(glm_highway$coefficients)
+```
+
+From these results, we can see that there is a significant change in the number of vehicles as the length of the highway segment increases ($p < 0.05$). As the length of the highway segment increases by 1 unit, the number of vehicles changes multiplicatively by 0.96, or decreases by 4%.
+
+### Binomial Logistic
+
+$logit(y) = mx + intercept$
+
+Binomial logistic regression (or logistic regression) is for binomial data, which contains information about successes/failures, presence/absence, etc, resulting in 1s and 0s as outcomes. The default link function for the binomial family is `logit()`, the log-odds function. Thus, the coefficients of a logistic regression model are reported in log-odds (the logarithm of the odds ratio). The odds ratio is the probability of an outcome occuring compared to an outcome not occuring. Consider a dice: you have a 1/6 chance of rolling a 1, but the odds of rolling a 1 is 1:5 (one correct outcome, 5 incorrect outcomes). 
+
+Note that this is the `Leinhardt` dataset, which contains information about the infant mortality and other socioeconomic factors of countries. Does the infant mortality of a country predict whether or not that country exports oil? Note that first we have to convert the oil column, of class factor, to an integer, for plotting.
+
+```{r}
+Leinhardt$oil_mod <- ifelse(Leinhardt$oil == "no", 0, 1)
+
+# Explore the Leinhardt dataset
+head(Leinhardt)
+summary(Leinhardt)
+dim(Leinhardt)
+
+hist(Leinhardt$oil_mod)
+ggplot(data = Leinhardt, aes(x = infant, y = oil_mod)) + 
+    geom_point(alpha = 0.1) + 
+    geom_smooth(method = "glm", method.args = list(family = "binomial"), se = FALSE) + 
+    theme_bw()
+```
+
+Let's run the glm function, and then remember to back-transform our coefficients. To back-transform the coefficients from a binomial distribution (to go from log-odds to a probability), use the function `plogis()`. We can also get the inflection point, which is the value of x where y goes from no to yes, or from 0 to 1, by taking the negative intercept and dividing it by the slope.
+
+```{r}
+# Run glm() and summary() here
+glm_oil_infant <- glm(oil_mod ~ infant, data = Leinhardt, family = binomial)
+summary(glm_oil_infant)
+
+# Transform some of the values for interpretation
+-glm_oil_infant$coefficient[1] / glm_oil_infant$coefficient[2]
+
+plogis(glm_oil_infant$coefficient[1])
+```
+
+From these results, we can see that as the infant mortality increases by 1, the log\-odds that the country produces/exports oil will increase by 0.0065 \($p = 0.03$\).  The point where a country may change to an oil importer is when infant mortality is 488.9 \(per thousand\). The probability of being an oil\-producing country, even with zero infant mortality, is 0.03, or 3%.
+
+Beyond links to adjust the outcome variable, you can also change the predictor variables. For example, if you see unequal variances in your residuals that increase with the mean, you can apply `log()` to your predictor variable to variance stabilize and potentially fulfill the equal variances assumption.
+
+This is a very brief overview into the very powerful tool that is linear regression. If you would like to learn more about linear regression, especially in the context of machine learning \(statistical learning\), and have a sufficient enough mathematic background, the textbook "Statistical Learning" by Robert Tibshirani is highly recommended: https://www.statlearning.com/
+
+## Survival Analysis
+---
+
+Survival data are time-to-event data that consist of a distinct start time and end time. Longitudinal studies, where you track subjects from one time point (entry into study, diagnosis, start of treatment, etc.) to an outcome event (death, onset of disease, relapse, etc.), are different from the inferential statistics that we have covered so far (comparing means, proportions, etc.). For example, we looked at how the numbers of fatal car accidents differed before and after the seatbelt law came into effect. In this kind of analysis, you implicitly assume that the rates of car accidents are constant over the period of the study, defined by the different groups. In contrast, longitudinal studies do not assume that. For example, the risk of death after surgery is highest immediately post-op, decreases as the patient recovers, and then rises slowly as the patient ages. 
+
+Survival analysis lets you analyze the rates of occurrence of events over time, without assuming the rates are constant. Generally, survival analysis lets you model the time until an event occurs, or compare the time-to-event between different groups, or how time-to-event correlates with quantitative variables.
+
+
+### Definitions
+
+The **hazard** is the instantaneous event (death) rate at a particular time point t. Survival analysis doesn’t assume the hazard is constant over time.
+
+The **survival function** is the probability an individual survives (or, the probability that the event of interest does not occur) up to and including time t. That is, it’s the probability that the event (e.g., death) hasn’t occurred yet. Since it's a probability, the survival function is always between 0 and 1. Note that survival times are always positive.
+
+**Censoring** is a type of missing data problem unique to survival analysis, and happens when you track the sample/subject through the end of the study and the event never occurs. This could also happen due to the sample/subject dropping out of the study for reasons other than death, no event (death) by the end of the study period, or some other loss to followup. The sample is censored in that you only know that the individual survived up to the loss to followup, but you don’t know anything about survival after that.
+
+### Assumptions
+
+Survival analysis assumes that **the ratio of hazards between groups is constant over time** (proportional hazards assumption). Remember that the main goal of survival analysis is to compare the probability of survival (survival function) in different groups. If you followed both groups until everyone has died, both survival curves will end at 0%, but one group might have survived a long longer than the other group. Survival analysis compares the hazard at different times over the observation period.
+
+There are methods to deal with non-proportional hazards, or interactions of covariates with the time to event, but we won't cover it here.
+
+Survival analysis also assumes that the relationship between the log hazard and the covariate is linear, which can be verified with residual plots.
+
+Let's use the `lung` dataset from the `survival` package to illustrate this. This dataset contains survival data of patients with advanced lung cancer, where `time` is the observed survival time in days, and `status` indicates censuring status: 1 = censored, 2 = dead. First, we need to recode the `status` column so that 1 = event and 0 = censured, which is the standard way to code censoring data.
+
+```{r}
+head(lung)
+summary(lung)
+
+# lung <- lung %>% mutate(status_new = case_when(status == "1" ~ 0, status == "2" ~ 1))  # tidyverse way 
+lung$status_new <- ifelse(lung$status == "1", 0, 1) # base R way
+table(lung$sex)
+
+head(lung)
+
+# ?lung
+```
+
+What is the probability of survival beyond 1 year? 10 years?
+
+The `Surv()` function creates a survival object that can be used in the model. Each entry indicates the survival time for the patient, and a `+` indicates if the subject was censored. Let's look at the first 10 observations
+
+```{r}
+# Run Surv() and look at the first 10 observations
+Surv(lung$time, lung$status)[1:10]
+```
+
+Then, we can use the `survfit()` function to create survival curves. This function uses the **Kaplan–Meier** estimate \(another distribution\) to create a survival curve. We need to include an argument for a formula, where the `Surv` object is the response, and optional terms \(e.g., sex\) on the right. For a single survival curve, the right hand side should be ~ 1. Let's start with this for now:
+
+```{r}
+# Run survfit() and investigate the structure of the output with str()
+fit <- survfit(Surv(time, status) ~ 1, data = lung) 
+fit
+
+# summary(fit)
+str(fit)
+```
+
+Running `str()` on the survfit model, we can see two important outputs of interest: the survival estimate `surv` at each timepoint `time`. We also see the median survival time, which is about 310 days. Remember that since survival curves are not assumed to be normally distributed, using the median instead of the mean survival will be a better estimate.
+
+We can plot this in base R, or using other packages such as `survminer` or `survplot` that use the syntax of `ggplot2` (which we will do in future weeks). Here, use base R plotting to get survival probability on the y-axis and time in days on the x-axis, with confidence intervals.
+
+```{r}
+# Use plot()
+plot(fit)
+```
+
+We can find the probability of surviving beyond a certain number of years by using the summary() function.
+
+```{r}
+# Run summary()
+# You can get the documentation with "?summary.survfit"
+summary(fit, times = 365)
+summary(fit, times = c(0, 365, 700))
+```
+
+The probability of surviving at least 1 year is 40.9% \(with the upper and lower 95% confidence intervals\).
+
+This estimate, and all estimates from the `lung_surv` fitted object already automatically takes into account the patients that were censored \(e.g., left the study, failed to follow up\).
+
+What if we want to know if there is a difference in survival between men and women? We can add terms in our formula to test between-group differences. The most common way to compare survival times between groups is using a log-rank test, which ranks observations on a log-scale and puts equal weight on early and late follow-ups (there are versions that more heavily weight the early or late follow-up that could be more appropriate depending on the research question).
+
+Proportional hazards regression (or, Cox regression) is the most common log-rank approach to assess the effect of different variables on survival. The Cox proportional hazards regression model is accessed using the `coxph()` function, can assess the effect of multiple variables all at once, and uses a similar syntax as linear models `lm()`.
+
+Is there a difference in survival time according to sex?
+
+```{r}
+# Run coxph() and summary()
+lungmf_surv <- coxph(Surv(time, status) ~ sex, data = lung)
+summary(lungmf_surv)
+```
+
+There is a significant difference in overall survival according to sex in the lung data \($ p = 0.00149$\). Since we are in log\-rank units, we need to exponentiate the slope coefficient for sex, which is automatically done in the output table = 0.588. This is the hazard ratio, or the the multiplicative effect of the variable `sex` on the hazard rate. To go from male to female, there is a 58.8% change in hazard; that is, females have approximately a 41% decrease in hazard. You can also flip the sign and take exp\(\-0.588\), which you can interpret as males resulting in a 1.7\-fold increase in hazard, or that males die at approximately 1.7 times the rate as females.
+
+We can plot this quickly as well. Note that plotting survival curves in base R requires an argument for the survival object that we have to create using survfit. The difference between this and `coxph()` is that `survfit()` will estimate survival curves **within** each group (e.g., sex), while `coxph()` will test whether variables lead to differences **between** the groups.
+
+```{r}
+# Repeat previous analysis with sex as and additional variable
+fitMF <- survfit(Surv(time, status) ~ sex, data = lung)
+plot(fitMF, col = c("blue", "red"))
+fitMF
+```
+
+We can see that there were 138 males and 90 females in this study, and the median time of death for males was 270 days, while the median time of death for females was 426 days. Confidence intervals are also provided.
+
+## Principal Component Analysis
+
+---
+
+Quick review of principal component analysis \(PCA\) incoming! Principal Component Analysis uses linear algebra principles to find **principal components**, that is, vectors that represent the greatest variance in the dataset. It does this thorough a linear combination of the existing variables of the dataset. PCA can be seen as a form of dimensionality reduction that helps us better visualize and understand multi\-dimensional continuous/ qualitative data.
+
+Let's use the dataset `Pottery` from the `car` package, which gives the chemical composition of ancient pottery found at four sites in Great Britain. The data includes the site where the pottery came from, and then the chemical composition for aluminium, iron, magnesium, calcium, and sodium.
+
+```{r}
+head(Pottery)
+dim(Pottery)
+```
+
+We usually want to make sure that all of our variables have equal variances so that one does not dominate the PCA \(unless the differences in variances are meaningful for our data\).
+
+```{r}
+# Subset and scale Pottery 
+pottery_sub <- Pottery[, -1]
+head(pottery_sub)
+
+pottery_scaled <- scale(pottery_sub)
+
+cat("\n")
+cat("Unscaled variances:\n")
+apply(pottery_sub, 2, var)
+
+cat("Scaled variances:\n")
+apply(pottery_scaled, 2, var)
+```
+
+Let's run a PCA using the 5 chemicals to see if it separates the sites differently. Remember that we want to run a PCA on the chemicals (thereby reducing the 5 chemicals into 2 dimensions). These chemicals are already along our columns, no need to transpose!
+
+```{r}
+# Run prcomp() and summary()
+pc_pottery <- prcomp(pottery_scaled)
+summary(pc_pottery)
+
+# $rotation contains the contributions of each element to the principal components (also called loadings)
+pc_pottery$rotation
+
+# $x contains the data set projected onto the principal components
+pc_pottery$x
+```
+
+We can plot our sites and our loadings along our first principal components, the ones that represent the greatest variance in the dataset.
+
+```{r}
+autoplot(pc_pottery, data = Pottery, colour = "Site",
+         loadings = TRUE,
+         loadings.label = TRUE,
+         loadings.colour = "blue",
+         loadings.label.size = 7) + theme_bw()
+```
+
+Let's interpret this! The Llanedyrn \(purple\) and Caldicot \(green\) site are separating from the rest of the sites, and load negatively onto PC1, while pottery from AshleyRails \(red\) and IsleThorns \(blue\) seem to load positively along PC1. Caldicot also loads negatively onto PC2. Llanedyrn pottery tends have higher levels of all minerals other than aluminum, while AshleyRails and IsleThorns have higher levels of aluminium. Caldicot pottery has lower levels of sodium and aluminum \(and magnesium\) compared to the rest as it loads negatively on PC2.
+
+## Differential Gene Expression Analysis
+
+---
+
+Differential Gene expression analysis is a way to find if there are significant changes in gene expression as a result of a particular change in stimulus, environment or condition. We will be using [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) to undergo our analysis, however there are also other tools out there that can be used including limma and EdgeR. You can find out more about them here:  [Limma, ](https://bioconductor.org/packages/release/bioc/html/limma.html)[Edge](https://bioconductor.org/packages/release/bioc/html/edgeR.html)
+
+### Importing the data
+
+During differential gene expression analysis, there are
+two main things that you must import: 
+
+1. Your read data
+   - This is your raw data. There are many formats that your gene expression data can take ranging from simple `csv` or `tsv` files to complex `Summarized Experiments`. Each type of file has a different method of importing. For the sake of time and for your assignments, we will focus on importing a simple count matrix in the form of a `csv` or `tsv` file
+   - It must be in the format of `condition` or `treatment group` as columns and `genes` or `features` as rows
+   - DESeq2 must use raw counts because of how the underlying algorithm works  
+
+2. Your meta data
+   1. This file will provide more information about your read data that cannot fit in your read data file. These can include accessory information that can be used to investigate other sources of variation in your read data. You can also include information that is good to know but is not needed in your analysis
+
+Here we will be using data from the`pasilla` package. This data set is from an experiment on Drosophila melanogaster cell cultures and investigated the effect of RNAi knock\-down of the splicing factor pasilla. The files can be found in your `data` folder and more can be found about it [here](https://bioconductor.org/packages/release/data/experiment/html/pasilla.html)
+
+```{r}
+# Import the read data from "data/pasilla_gene_counts.tsv" into "cts" using read.csv() or read.table() or similar
+cts <- read.csv("data/data/pasilla_gene_counts.tsv", sep = "\t", row.names="gene_id")
+
+# Import the metadata from "data/pasilla_sample_annotation.csv" into "anot" using read.csv()
+anot_raw <- read.csv("data/data/pasilla_sample_annotation.csv")
+
+head(cts)
+head(anot_raw)
+```
+
+#### Data Cleaning
+
+In our `cts` data we see that we have almost 15000 features or "genes" that were taken from 7 conditions: 4 untreated and 3 treated. In `anot` we see that we have 7 rows that correspond to our column names in `cts` as well as 5 columns with more information. We won't need all the data in the annotations right now so we can eliminate the columns we don't need. We will also have to factorize the other data that we are using so that we can create "levels" in our data. We also need to make sure that the column names in `cts` match the rownames in`anot` and that they are in the same order
+
+```{r}
+# Subset "anot" to just the columns "condition" and "type", and change the columns into factors
+anot <- anot_raw[, c("file", "condition", "type")]
+anot$condition <- factor(as.character(anot$condition))
+anot$type <- factor(as.character(anot$type))
+
+
+# Make sure that the column names and rownames match between cts and anot and are the same order
+# Hint: try sub() for changing column names
+rownames(anot) <- sub("fb$", "", anot_raw$file)
+head(anot)
+
+cts <- cts[, rownames(anot)] # rearranges column names
+
+rownames(anot)
+colnames(cts)
+all(rownames(anot) == colnames(cts))
+```
+
+Okay! So now that the data is organized we can go ahead and create our `DESeqDataSet`! To do this we need to use the function `DESeqDataSetFromMatrix`. There are multiple other functions that you can use to convert your data to a `DESeqDataSet` however because we are going from tabular data we will need to use the `DESeqDataSetFromMatrix` function. This function takes 3 arguments:
+
+1. Your count data
+2. Your annotation data or "column" data
+3. Your design formula
+
+The key aspect of this analysis is creating the right design formula in order to make the comparisons that are best for the questions you are trying to answer. There are typically three types of design formulas that you will need in gene expression analysis:
+
+- Effect of one condition
+- Effect of two conditions
+- The interaction of two conditions
+
+The design formula should include all the variables that would account for major sources of variation in your data. While the first two may seem simple enough to understand the third one can get a little complicated. You can learn more about it [here](https://www.bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#interactions). We will go through some of the different types of design formulas and their uses. 
+
+First let's look at the effect of `condition` on the expression of our features. As we've seen in our `anot` object, condition is a column specifying two groups that the samples belong to (treated, untreated).
+
+```{r}
+# Turn the data into a DESeqDataSet "dds" with DESeqDataSetFromMatrix()
+dds <- DESeqDataSetFromMatrix(cts, anot, ~ condition)
+
+# To make sure that our untreated condition is our reference level we can explicitly state it:
+dds$condition <- relevel(dds$condition, ref = "untreated")
+
+dim(dds)
+```
+
+#### Pre-filtering
+
+While pre\-filtering isn't always necessary, it can be an important step in data normalization/cleaning. It essentially removes genes that do not have enough reads for each of its samples. This can be very crucial in preventing false positives. 
+
+A typical read count of 10 or more is a reasonable choice for bulk RNA\-seq. We want to make sure that our feature has read data for the minimal number of samples. This is typically the smallest group size, e.g. here there are 3 treated samples.
+
+```{r}
+smallestGroupSize <- 3
+keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
+dds <- dds[keep, ]
+dim(dds)
+```
+
+WOW that's almost half of our genes \- GONE! Now we can focus on genes that are expressed in most of our samples and we can make accurate interpretations of our data. Let's run DESeq now
+
+```{r}
+# Run DESeq() and results()
+dds_out <- DESeq(dds)
+```
+
+```{r}
+res <- results(dds_out)
+res
+mcols(res) 
+summary(res)
+resultsNames(dds)
+```
+
+#### `Log2FoldChange`
+
+Amazing! Now we can just filter to see which genes are significant by their adjusted p\-value right? ... right? Nope, we need to look at another important number here and that's the `Log2FoldChange`. This number will let you know just how much your feature changed in expression between your reference level and your treatment. Let's see how many differentially expressed genes we have. The criteria for a gene to be differentially expressed can vary widely on the study you come across. Typically it means that your `padj` is significant and your `LFC` is noticeably large. For our case here we will use `padj` &lt; 0.05 and `LFC` &gt; 1 which represents a doubling of expression. It is also important to note that genes can also be downregulated! This means that rather than increasing in expression, genes are decreasing their expression. Thus, it is always good practice to not only look at the positive `LFC` but also the negative, i.e. `abs(LFC) > 1`. It is also important to note that your `LFC` will always be in the format of $log{_2}{x \over reference}$, thus it is very important to tell `DESeq` what you want your reference level to be.
+
+```{r}
+# How many of our genes are _significantly_ differentially expressed?
+nrow(res[res$padj < 0.05, ])
+
+# How many have large fold changes?
+nrow(res[abs(res$log2FoldChange) > 1, ])
+
+# How many of our genes are differentially expressed (by our significance and logFC thresholds)?
+nrow(res[res$padj < 0.05 & abs(res$log2FoldChange) > 1, ])
+
+# How many are upregulated?
+nrow(res[res$padj < 0.05 & res$log2FoldChange > 1, ])
+
+# How many are down regulated?
+nrow(res[res$padj < 0.05 & res$log2FoldChange < -1, ])
+```
+
+### Adding another factor
+
+Here we can say that we got 216 DEGs as a result of treatment and that there was not much of a difference in the directionality of expression. Now lets add the effect of `type`. Here by creating a design formula of `~ condition + type`, we are testing the effect of type while controlling for the effect of condition, this allows us to answer the question "What is the effect of type alone on the data?". Let's rerun our analysis with our new formula
+
+```{r}
+# Rerun everything with a different design formula
+dds <- DESeqDataSetFromMatrix(cts, anot, ~ condition + type)
+dds$condition <- relevel(dds$condition, ref = "untreated")
+dds$type <- relevel(dds$type, ref = "single-read")
+
+# Pre-filter
+smallestGroupSize <- 3
+keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
+dds <- dds[keep, ]
+dim(dds)
+
+# Run DESeq()
+dds_condition_type <- DESeq(dds)
+res <- results(dds_condition_type)
+summary(res)
+resultsNames(dds_condition_type)
+```
+
+Now we have two result variables! We have one for condition \(`condition_treated_vs_untreated`\) and one for type \(`type_single.read_vs_paired.end`\). Notice that the general format of your intercepts are treatment\_vs\_reference, however there is also a way to manually compare if you need to with mutliple samples using the `results()` function
+
+```{r}
+# Get the result of the contrasts that are already given to us:
+resType <- results(dds_condition_type, name = "type_paired.end_vs_single.read")
+
+# Or make a manual contrast:
+resCond <- results(dds_condition_type, contrast=c("condition", "treated", "untreated")) 
+# contrast = c('factorName', 'numeratorLevel', 'denominatorLevel')
+
+resCond2 <- results(dds_condition_type, name = "condition_treated_vs_untreated")
+
+resType
+resCond
+```
+
+```{r}
+# How many DEGs are there as a result of type?
+
+nrow(resType[!is.na(resType$padj) & resType$padj < 0.05 & abs(resType$log2FoldChange) > 1, ])
+
+# alternative
+resType_filtered <- na.omit(resType)
+nrow(resType_filtered[resType_filtered$padj < 0.05 & abs(resType_filtered$log2FoldChange) > 1, ])
+```
+
+So it looks like there is more of an effect of treatment on our gene expression than read type! 
+
+### Interactions
+
+Interactions in DESeq are represented in the formulae by `:` and it typically follows the format of `condition + type + condition:type` or could also be shortened to `condition * type`. The interaction term is the same as the interaction term in linear regression, and considers when changes may be dependent on the interaction between condition and type.
+
+```{r}
+# Rerun everything with a different design formula
+dds <- DESeqDataSetFromMatrix(countData=cts, colData = anot, design = ~ condition + type + condition:type)
+dds$condition <- relevel(dds$condition, ref = "untreated")
+dds$type <- relevel(dds$type, ref = "single-read")
+dim(dds)
+
+# Pre-filter
+smallestGroupSize <- 3
+keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
+dds <- dds[keep,]
+dim(dds)
+
+# Run DESeq()
+dds <- DESeq(dds)
+res <- results(dds)
+summary(res)
+resultsNames(dds)
+```
+
+From `summary()`, it doesn't look like there's much of an effect here. But maybe there is for the LFC < 0? Let's try too take a look:
+
+```{r}
+res[res$padj < 0.1,]
+```
+
+### Plots
+
+Looking at counts of data can be a little exhausting and they're not very nice to put in our reports. Plots can make it easier to make out easy and quick patterns as well as locate any possible outliers or genes of interest. Let's go back to examining the effect of condition since it made the most sense. For some of our plots we will be using shrunken LFC to make it easier to visualize by minimizing noise from genes with low count levels. It helps to get more meaningful $log{_2}{x}$ fold changes for all genes regardless of their expression level.
+
+```{r}
+# Rerun everything with a different design formula
+dds <- DESeqDataSetFromMatrix(countData=cts, colData = anot, design = ~ condition)
+dds$condition <- relevel(dds$condition, ref = "untreated")
+dim(dds)
+
+# Pre-filter
+smallestGroupSize <- 3
+keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
+dds <- dds[keep,]
+dim(dds)
+
+# Run DESeq()
+dds <- DESeq(dds)
+res <- results(dds)
+summary(res)
+resultsNames(dds)
+```
+
+```{r}
+# Shrink the logFC using lfcShrink()
+resLFC <- lfcShrink(dds, coef = "condition_treated_vs_untreated", type = "normal")
+
+# the better option than normal would be to use "apeglm", however we have not gotten it installed :(
+```
+
+#### MA and Volcano Plots
+MA and volcano plots are a great first pass plot to visualize how your genes are expressed and if those changes in expression are large and significant. They specifically display mean expression levels, log fold-changes and adjusted P-values. Points will be colored blue if the adjusted p value is less than 0.1
+
+```{r}
+# Plot and MA plot using using plotMA()
+plotMA(resLFC)
+plotMA(res)
+```
+
+```{r}
+# While there are many pre-built volcano plot functions, let's plot directly using ggplot2() for now
+res_df <- data.frame(res) # fill in your results object
+ggplot(data = res_df, aes(x = log2FoldChange, y = -log10(pvalue))) +
+        geom_point() + 
+        theme_minimal() +
+        scale_color_manual(values = c("blue", "black", "red")) +
+        geom_vline(xintercept = c(-0.6, 0.6), col="red") +
+        geom_hline(yintercept = -log10(0.05), col="red")
+```
+
+That looks a little boring and hard to visualize, lets add some color based on it's expression status
+
+```{r}
+res_df$DEG <- "NA"
+res_df$DEG[res_df$log2FoldChange > 1 & res_df$pvalue < 0.05] <- "Up-regulated"
+res_df$DEG[res_df$log2FoldChange < -1 & res_df$pvalue < 0.05] <- "Down-regulated"
+head(res_df)
+table(res_df$DEG)
+```
+
+```{r}
+ggplot(data = res_df, aes(x = log2FoldChange, y = -log10(pvalue), col = DEG)) +
+        geom_point() + 
+        theme_minimal() +
+        scale_color_manual(values = c("blue", "black", "red")) +
+        geom_vline(xintercept = c(-0.6, 0.6), col = "red") +
+        geom_hline(yintercept = -log10(0.05), col = "red")
+```
+
+We can also try to label our genes of interest!
+
+```{r}
+res_df$genes <- NA
+res_df$genes[res_df$DEG != "NA"] <- row.names(res_df[res_df$DEG != "NA",])
+
+ggplot(data = res_df, aes(x = log2FoldChange, y = -log10(pvalue), col = DEG, label = genes)) + 
+    geom_point() + 
+    theme_minimal() +
+    geom_text()
+```
+
+These are just the basic ways of making your MA and volcano plots however, there are many different packages that can make making volcano and MA plots easy! We'd suggest taking a look at library("EnhancedVolcano") or other packages during your assignments
+
+#### Heatmaps
+Heatmaps are a wonderful way to colourfully visualize values and see how your data clusters together. This makes it a great jumping off point to assess other patterns or pathways that may be illuminated by the clustering. This is always great when using RNA-Seq data as it can show if samples show a coordinated expression pattern and also show if your samples act the same way given the same treatment.
+
+```{r}
+# There are way too many heatmap packages, but let us use pheatmap() from the pheatmap package for now
+vsd <- vst(dds, blind = FALSE) # variance stabilized transformation. Corrects for size factors or normalization factors
+sampleDists <- dist(t(assay(vsd))) # create a distance matrix between samples
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$condition, vsd$type, sep=" - ")
+colnames(sampleDistMatrix) <- NULL
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDists,
+         clustering_distance_cols = sampleDists)
+```
+
+Heatmaps have numerous uses. For example, you can also use heatmaps for plotting your top differentially expressed genes by samples (rather than samples by samples) to see how consistent your genes are expressed among samples (is there additional variation within each of your groups or is it consistent throughout?).
+
+#### PCAs
+PCAs are a great way to visualize all your samples together.
+
+```{r}
+plotPCA(vsd, intgroup = c("condition", "type")) + theme_bw()
+```
+
+#### Other plots
+There are numerous other plots you can make from differential gene expression results, depending on what your question is and what you want to show.  Try looking at the DESeq2 vignettes for some ideas.
+
+For example, sometimes it might be useful to see how the read counts compare between your groups for a particular gene of interest. Remember that interaction gene from above? Let's try it out with this and see.
+
+```{r}
+plotCounts(dds, gene="FBgn0085787", intgroup="condition")
+```
+
+We can see that not all the read counts cluster together and that there seem to be 2 samples where there were lower reads in the untreated category
